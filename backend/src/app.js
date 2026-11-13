@@ -41,6 +41,13 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-sequelize.sync({ alter: true }).then(() => {
-  app.listen(PORT, () => console.log(`API listening on http://localhost:${PORT}`));
-});
+
+sequelize.sync()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`API listening on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Database synchronization failed:', err);
+  });
