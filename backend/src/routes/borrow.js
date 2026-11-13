@@ -37,6 +37,21 @@ router.post('/approve/:id', authorize('admin','librarian'), async (req, res) => 
   res.json(record);
 });
 
+// Get borrow records - readers see their own, librarian/admin see all
+router.get('/all', authorize('reader', 'librarian', 'admin'), async (req, res) => {
+  try {
+    const where = req.user.role === 'reader' ? { userId: req.user.id } : {};
+    const records = await BorrowRecord.findAll({
+      where,
+      include: [{ model: BookCopy }],
+      order: [['id', 'DESC']]
+    });
+    res.json(records);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Return a copy
 router.post('/return/:id', authorize('reader','admin','librarian'), async (req, res) => {
   const { id } = req.params;

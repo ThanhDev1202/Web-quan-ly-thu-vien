@@ -1,19 +1,19 @@
 const express = require('express');
 const cors = require('cors');
-const { sequelize } = require('./src/models');
-const { verifyToken } = require('./src/middleware/auth');
+const { sequelize } = require('./models');
+const { verifyToken } = require('./middleware/auth');
 
 // Route imports
-const authRoutes = require('./src/routes/auth');
-const userRoutes = require('./src/routes/users');
-const bookRoutes = require('./src/routes/books');
-const categoryRoutes = require('./src/routes/categories');
-const authorRoutes = require('./src/routes/authors');
-const copyRoutes = require('./src/routes/copies');
-const borrowRoutes = require('./src/routes/borrow');
-const reservationRoutes = require('./src/routes/reservations');
-const auditRoutes = require('./src/routes/audit');
-const previewRoutes = require('./src/routes/previews');
+const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
+const bookRoutes = require('./routes/books');
+const categoryRoutes = require('./routes/categories');
+const authorRoutes = require('./routes/authors');
+const copyRoutes = require('./routes/copies');
+const borrowRoutes = require('./routes/borrow');
+const reservationRoutes = require('./routes/reservations');
+const auditRoutes = require('./routes/audit');
+const previewRoutes = require('./routes/previews');
 
 const app = express();
 app.use(cors());

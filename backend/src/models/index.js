@@ -1,20 +1,24 @@
-const sequelize = require('./config/db');
-const User = require('./models/user');
-const Category = require('./models/category');
-const Author = require('./models/author');
-const Book = require('./models/book');
-const BookAuthor = require('./models/bookAuthor');
-const BookCopy = require('./models/bookCopy');
-const BorrowRecord = require('./models/borrowRecord');
-const Reservation = require('./models/reservation');
-const AuditLog = require('./models/auditLog');
-const BookPreview = require('./models/bookPreview');
+const sequelize = require('../config/db');
+const User = require('./user');
+const Category = require('./category');
+const Author = require('./author');
+const Book = require('./book');
+const BookAuthor = require('./bookAuthor');
+const BookCopy = require('./bookCopy');
+const BorrowRecord = require('./borrowRecord');
+const Reservation = require('./reservation');
+const AuditLog = require('./auditLog');
+const BookPreview = require('./bookPreview');
 
 // Associations
 User.hasMany(BorrowRecord, { foreignKey: 'user_id' });
+BorrowRecord.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
+
 User.hasMany(Reservation, { foreignKey: 'user_id' });
+Reservation.belongsTo(User, { foreignKey: 'user_id' });
+
 User.hasMany(AuditLog, { foreignKey: 'user_id' });
-User.hasMany(BookCopy, { foreignKey: 'librarian_id' }); // optional
+AuditLog.belongsTo(User, { foreignKey: 'user_id' });
 
 Category.hasMany(Book, { foreignKey: 'category_id' });
 Book.belongsTo(Category, { foreignKey: 'category_id' });
