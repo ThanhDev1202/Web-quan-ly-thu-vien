@@ -2,6 +2,7 @@
 const { User } = require('../models');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const verifyToken = require('../middleware/auth');
 require('dotenv').config();
 
 //check email format
@@ -71,45 +72,48 @@ async function register({ username, email, password, fullName, phone, role, stat
 // LOGIN
 
 
+
 async function login({ email, password }) {
-//1. Kiểm tra email và password có tồn tại không
-      if (!email || !email.trim()) {
+    // 1. Kiểm tra email
+    if (!email || typeof email !== 'string' || !email.trim()) {
         throw new Error('Email is required');
     }
-    if (!password || !password.trim()) {
+
+    // 2. Kiểm tra password
+    if (!password || typeof password !== 'string' || !password.trim()) {
         throw new Error('Password is required');
     }
 
-    // 2. Tìm user theo email
+    // 3. Tìm user theo email
     const user = await User.findOne({
-        where: { email }
-    }); 
-    // 3.kiểm tra user
+        where: { email: email.trim() }
+    });
+
     if (!user) {
         throw new Error('Invalid email or password');
     }
-    // 4. Kiểm tra password
+
+    // 4. Kiểm tra mật khẩu
     const isMatch = await bcrypt.compare(
         password,
         user.passwordHash
     );
 
-
-
     if (!isMatch) {
         throw new Error('Invalid email or password');
     }
 
-if (user.status !== 'active') {
+    // 5. Kiểm tra trạng thái tài khoản
+    if (user.status !== 'active') {
         throw new Error('Account is locked');
     }
 
-    // 4. Kiểm tra JWT_SECRET
+    // 6. Kiểm tra JWT_SECRET
     if (!process.env.JWT_SECRET) {
         throw new Error('JWT_SECRET is not configured');
     }
 
-    // 5. Tạo JWT
+    // 7. Tạo JWT
     const token = jwt.sign(
         {
             id: user.id,
@@ -121,7 +125,7 @@ if (user.status !== 'active') {
         }
     );
 
-    // 6. Trả token và thông tin user
+    // 8. Trả về token và thông tin user
     return {
         token,
         user: {
@@ -135,15 +139,49 @@ if (user.status !== 'active') {
     };
 }
 
+
 // LOGOUT
 async function logout() {
     return {
         message: 'Logout successful'
     };
 }
+//change-pass
+
+async function ChangePassword(userID, oldPassword, newPassword) {
+    const user = await User.findByPk(userID);
+    if (!user) {
+        throw new Error('User not found');
+    }
+    // So sánh mật khẩu cũ với hash trong database
+    const isMatch = await bcrypt.compare(
+        oldPassword,
+        user.passwordHash
+    );
+console.log('Old password match:', isMatch);
+    if (!isMatch) {
+        throw new Error('Current password is invalid');
+    }
+
+    // Kiểm tra mật khẩu mới
+    if (!isValidPassword(newPassword)) {
+        throw new Error('New password is invalid');
+    }
+
+    // Hash mật khẩu mới
+    user.passwordHash = newPassword;
+    
+    await user.save();
+console.log('Password saved successfully');
+    return {
+        message: 'Password changed successfully'
+    };
+}
+
 
 module.exports = {
     register,
     login,
-    logout
+    logout,
+    ChangePassword
 };

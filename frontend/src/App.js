@@ -12,6 +12,7 @@ import ManageBooks from './pages/ManageBooks';
 import BorrowManagement from './pages/BorrowManagement';
 import ReservationManagement from './pages/ReservationManagement';
 import AuditLogs from './pages/AuditLogs';
+import ChangePassword from './pages/ChangePassword';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -41,6 +42,12 @@ function AppContent() {
               <BorrowManagement />
             </ProtectedRoute>
           } />
+          <Route path="/change-password"element={
+        <ProtectedRoute>
+            <ChangePassword />
+        </ProtectedRoute>
+    }
+/>
           <Route path="/reservations" element={
             <ProtectedRoute>
               <ReservationManagement />
