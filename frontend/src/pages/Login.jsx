@@ -21,7 +21,11 @@ export default function Login() {
       login(res.data.token);
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản.');
+      setError(
+    err.response?.data?.error ||
+    err.response?.data?.message ||
+    'Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản.'
+);
     } finally {
       setLoading(false);
     }

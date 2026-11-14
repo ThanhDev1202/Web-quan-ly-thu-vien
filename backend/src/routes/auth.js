@@ -5,35 +5,43 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/user');
 require('dotenv').config();
 
-// Register (any role; in production restrict to admin)
+
+const authService = require('../services/auth.services');
+
+
+// REGISTER
 router.post('/register', async (req, res) => {
-  const { username, email, password, fullName, phone, role } = req.body;
-  try {
-    const user = await User.create({
-      username,
-      email,
-      passwordHash: password,
-      fullName,
-      phone,
-      role,
-      status: 'active',
-    });
-    res.status(201).json({ id: user.id, username: user.username });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+    try {
+        const user = await authService.register(req.body);
+
+        return res.status(201).json({
+            message: 'Register successful',
+            data: user
+        });
+
+    } catch (e) {
+        return res.status(400).json({
+            error: e.message
+        });
+    }
 });
 
 // Login
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-  const user = await User.findOne({ where: { email } });
-  if (!user) return res.status(401).json({ message: 'Invalid credentials' });
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) return res.status(401).json({ message: 'Invalid credentials' });
+    try {
+        const { email, password } = req.body;
+        const { token, user } = await authService.login({ email, password });
 
-  const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '8h' });
-  res.json({ token });
+        return res.status(200).json({
+            message: 'Login successful',
+            token,
+            user
+        });
+    } catch (e) {
+        return res.status(401).json({
+            error: e.message
+        });
+    }
 });
 
 module.exports = router;
