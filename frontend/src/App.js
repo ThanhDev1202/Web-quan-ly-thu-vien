@@ -12,6 +12,7 @@ import ManageBooks from './pages/ManageBooks';
 import BorrowManagement from './pages/BorrowManagement';
 import ReservationManagement from './pages/ReservationManagement';
 import AuditLogs from './pages/AuditLogs';
+import AdminUserManagement from './pages/AdminUserManagement';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -59,6 +60,11 @@ function AppContent() {
           <Route path="/audit-logs" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AuditLogs />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/users" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminUserManagement />
             </ProtectedRoute>
           } />
           <Route path="*" element={<Navigate to="/" replace />} />

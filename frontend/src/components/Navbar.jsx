@@ -34,7 +34,10 @@ export default function Navbar() {
             )}
 
             {user?.role === 'admin' && (
-              <Link to="/audit-logs"><i className="fa-solid fa-shield-halved"></i> Nhật ký hệ thống</Link>
+              <>
+                <Link to="/admin/users"><i className="fa-solid fa-users-gear"></i> Quản lý tài khoản</Link>
+                <Link to="/audit-logs"><i className="fa-solid fa-shield-halved"></i> Nhật ký hệ thống</Link>
+              </>
             )}
           </>
         )}
