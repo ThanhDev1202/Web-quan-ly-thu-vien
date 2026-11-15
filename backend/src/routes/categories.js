@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { Category } = require('../models');
-const { authorize } = require('../middleware/auth');
+const { verifyToken, authorize } = require('../middleware/auth');
 
 // Create category – admin or librarian
-router.post('/', authorize('admin','librarian'), async (req, res) => {
+router.post('/', verifyToken, authorize('admin','librarian'), async (req, res) => {
   const { name, description } = req.body;
   try {
     const cat = await Category.create({ name, description });
@@ -16,8 +16,12 @@ router.post('/', authorize('admin','librarian'), async (req, res) => {
 
 // Get all categories – public
 router.get('/', async (req, res) => {
-  const cats = await Category.findAll();
-  res.json(cats);
+  try {
+    const cats = await Category.findAll();
+    res.json(cats);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 module.exports = router;
