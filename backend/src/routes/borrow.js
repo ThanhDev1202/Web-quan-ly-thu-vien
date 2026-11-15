@@ -1,67 +1,136 @@
+
 const express = require('express');
 const router = express.Router();
-const { BorrowRecord, BookCopy } = require('../models');
+
+const borrowService = require('../services/borrow.services');
 const { authorize } = require('../middleware/auth');
 
-// Request a borrow (reader)
-router.post('/request', authorize('reader','librarian','admin'), async (req, res) => {
-  const { copyId, dueDate } = req.body;
-  try {
-    const copy = await BookCopy.findByPk(copyId);
-    if (!copy) return res.status(404).json({ message: 'Copy not found' });
-    if (copy.status !== 'available') return res.status(400).json({ message: 'Copy not available' });
+// Request a borrow - reader/librarian/admin
+router.post('/request', authorize('reader', 'librarian', 'admin'), async (req, res) => {
+    try {
+        const result = await borrowService.requestBorrow(req.body, req.user);
 
-    const record = await BorrowRecord.create({
-      userId: req.user.id,
-      copyId,
-      librarianId: null,
-      borrowDate: new Date(),
-      dueDate,
-      status: 'pending',
-    });
-    res.status(201).json(record);
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+        if (result.notFound) {
+            return res.status(404).json({ message: result.message });
+        }
+
+        if (result.invalid) {
+            return res.status(400).json({ message: result.message });
+        }
+
+        return res.status(201).json(result.data);
+    } catch (e) {
+        return res.status(400).json({ error: e.message });
+    }
 });
 
-// Approve borrow – admin/librarian
-router.post('/approve/:id', authorize('admin','librarian'), async (req, res) => {
-  const { id } = req.params;
-  const record = await BorrowRecord.findByPk(id);
-  if (!record) return res.status(404).json({ message: 'Record not found' });
-  if (record.status !== 'pending') return res.status(400).json({ message: 'Record not pending' });
+// Approve borrow - admin/librarian
+router.post('/approve/:id', authorize('admin', 'librarian'), async (req, res) => {
+    try {
+        const result = await borrowService.approveBorrow(req.params.id);
 
-  await BookCopy.update({ status: 'borrowed' }, { where: { id: record.copyId } });
-  await record.update({ status: 'borrowed', librarianId: req.user.id, borrowDate: new Date() });
-  res.json(record);
+        if (result.notFound) {
+            return res.status(404).json({ message: result.message });
+        }
+
+        if (result.invalid) {
+            return res.status(400).json({ message: result.message });
+        }
+
+        return res.json(result.data);
+    } catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
 });
 
-// Get borrow records - readers see their own, librarian/admin see all
+// Reject borrow - admin/librarian
+router.post('/reject/:id', authorize('admin', 'librarian'), async (req, res) => {
+    try {
+        const result = await borrowService.rejectBorrow(req.params.id);
+
+        if (result.notFound) {
+            return res.status(404).json({ message: result.message });
+        }
+
+        if (result.invalid) {
+            return res.status(400).json({ message: result.message });
+        }
+
+        return res.json(result.data);
+    } catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+
+// Confirm handover - admin/librarian
+router.post('/handover/:id', authorize('admin', 'librarian'), async (req, res) => {
+    try {
+        const result = await borrowService.confirmHandover(
+            req.params.id,
+            req.user
+        );
+
+        if (result.notFound) {
+            return res.status(404).json({ message: result.message });
+        }
+
+        if (result.invalid) {
+            return res.status(400).json({ message: result.message });
+        }
+
+        return res.json(result.data);
+    } catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+
+// Get all borrow records
 router.get('/all', authorize('reader', 'librarian', 'admin'), async (req, res) => {
-  try {
-    const where = req.user.role === 'reader' ? { userId: req.user.id } : {};
-    const records = await BorrowRecord.findAll({
-      where,
-      include: [{ model: BookCopy }],
-      order: [['id', 'DESC']]
-    });
-    res.json(records);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+    try {
+        const records = await borrowService.getAllBorrows(req.user);
+        return res.json(records);
+    } catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+
+// Get overdue borrow records
+router.get('/overdue', authorize('reader', 'librarian', 'admin'), async (req, res) => {
+    try {
+        const records = await borrowService.getOverdueBorrows(req.user);
+        return res.json(records);
+    } catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+
+// Get borrow history
+router.get('/history', authorize('reader', 'librarian', 'admin'), async (req, res) => {
+    try {
+        const records = await borrowService.getBorrowHistory(req.user);
+        return res.json(records);
+    } catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
 });
 
 // Return a copy
-router.post('/return/:id', authorize('reader','admin','librarian'), async (req, res) => {
-  const { id } = req.params;
-  const record = await BorrowRecord.findByPk(id);
-  if (!record) return res.status(404).json({ message: 'Record not found' });
-  if (record.status !== 'borrowed') return res.status(400).json({ message: 'Not borrowed' });
+router.post('/return/:id', authorize('reader', 'admin', 'librarian'), async (req, res) => {
+    try {
+        const result = await borrowService.returnBorrow(req.params.id);
 
-  await BookCopy.update({ status: 'available' }, { where: { id: record.copyId } });
-  await record.update({ status: 'returned', returnDate: new Date() });
-  res.json(record);
+        if (result.notFound) {
+            return res.status(404).json({ message: result.message });
+        }
+
+        if (result.invalid) {
+            return res.status(400).json({ message: result.message });
+        }
+
+        return res.json(result.data);
+    } catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
 });
 
 module.exports = router;
