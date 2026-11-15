@@ -34,6 +34,13 @@ export default function Navbar() {
               <i className="fa-solid fa-bookmark"></i> Đặt trước
             </Link>
 
+            <Link to="/users">
+              <i className="fa-solid fa-user-pen"></i>
+              {user?.role === 'admin'
+                ? ' Quản lý người dùng'
+                : ' Hồ sơ cá nhân'}
+            </Link>
+
             <Link to="/change-password">
               <i className="fa-solid fa-key"></i> Đổi mật khẩu
             </Link>
@@ -43,6 +50,7 @@ export default function Navbar() {
                 <Link to="/manage-books">
                   <i className="fa-solid fa-book-medical"></i> Quản lý sách
                 </Link>
+
                 <Link to="/manage-borrows">
                   <i className="fa-solid fa-clipboard-check"></i> Duyệt mượn/trả
                 </Link>
@@ -62,7 +70,11 @@ export default function Navbar() {
         {isAuthenticated ? (
           <>
             <div className="user-badge">
-              <i className="fa-solid fa-user-circle" style={{ fontSize: '1.1rem' }}></i>
+              <i
+                className="fa-solid fa-user-circle"
+                style={{ fontSize: '1.1rem' }}
+              ></i>
+
               <span className={`role-tag role-${user?.role || 'reader'}`}>
                 {user?.role}
               </span>

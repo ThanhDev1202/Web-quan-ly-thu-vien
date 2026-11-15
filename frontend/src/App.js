@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -13,73 +14,102 @@ import BorrowManagement from './pages/BorrowManagement';
 import ReservationManagement from './pages/ReservationManagement';
 import AuditLogs from './pages/AuditLogs';
 import ChangePassword from './pages/ChangePassword';
+import UserManagement from './pages/UserManagement';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children, allowedRoles }) => {
-  const { isAuthenticated, user } = useAuth();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (allowedRoles && !allowedRoles.includes(user?.role)) {
-    return (
-      <div className="container" style={{ textAlign: 'center', padding: '60px' }}>
-        <h2>403 - Bạn không có quyền truy cập khu vực này</h2>
-      </div>
-    );
-  }
-  return children;
+    const { isAuthenticated, user } = useAuth();
+
+    if (!isAuthenticated) {
+        return <Navigate to="/login" replace />;
+    }
+
+    if (allowedRoles && !allowedRoles.includes(user?.role)) {
+        return (
+            <div className="container" style={{ textAlign: 'center', padding: '60px' }}>
+                <h2>403 - Bạn không có quyền truy cập khu vực này</h2>
+            </div>
+        );
+    }
+
+    return children;
 };
 
 function AppContent() {
-  return (
-    <Router>
-      <Navbar />
-      <main>
-        <Routes>
-          <Route path="/" element={<BookCatalog />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/my-borrows" element={
-            <ProtectedRoute>
-              <BorrowManagement />
-            </ProtectedRoute>
-          } />
-          <Route path="/change-password"element={
-        <ProtectedRoute>
-            <ChangePassword />
-        </ProtectedRoute>
-    }
-/>
-          <Route path="/reservations" element={
-            <ProtectedRoute>
-              <ReservationManagement />
-            </ProtectedRoute>
-          } />
-          <Route path="/manage-books" element={
-            <ProtectedRoute allowedRoles={['admin', 'librarian']}>
-              <ManageBooks />
-            </ProtectedRoute>
-          } />
-          <Route path="/manage-borrows" element={
-            <ProtectedRoute allowedRoles={['admin', 'librarian']}>
-              <BorrowManagement />
-            </ProtectedRoute>
-          } />
-          <Route path="/audit-logs" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <AuditLogs />
-            </ProtectedRoute>
-          } />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </main>
-      <AIChatBot />
-    </Router>
-  );
+    return (
+        <Router>
+            <Navbar />
+
+            <main>
+                <Routes>
+                    <Route path="/" element={<BookCatalog />} />
+
+                    <Route path="/login" element={<Login />} />
+
+                    <Route path="/register" element={<Register />} />
+
+                    {/* User Management & Profile */}
+                    <Route path="/users" element={
+                        <ProtectedRoute>
+                            <UserManagement />
+                        </ProtectedRoute>
+                    } />
+
+                    {/* Borrow Management */}
+                    <Route path="/my-borrows" element={
+                        <ProtectedRoute>
+                            <BorrowManagement />
+                        </ProtectedRoute>
+                    } />
+
+                    {/* Change Password */}
+                    <Route path="/change-password" element={
+                        <ProtectedRoute>
+                            <ChangePassword />
+                        </ProtectedRoute>
+                    } />
+
+                    {/* Reservations */}
+                    <Route path="/reservations" element={
+                        <ProtectedRoute>
+                            <ReservationManagement />
+                        </ProtectedRoute>
+                    } />
+
+                    {/* Manage Books */}
+                    <Route path="/manage-books" element={
+                        <ProtectedRoute allowedRoles={['admin', 'librarian']}>
+                            <ManageBooks />
+                        </ProtectedRoute>
+                    } />
+
+                    {/* Manage Borrows */}
+                    <Route path="/manage-borrows" element={
+                        <ProtectedRoute allowedRoles={['admin', 'librarian']}>
+                            <BorrowManagement />
+                        </ProtectedRoute>
+                    } />
+
+                    {/* Audit Logs */}
+                    <Route path="/audit-logs" element={
+                        <ProtectedRoute allowedRoles={['admin']}>
+                            <AuditLogs />
+                        </ProtectedRoute>
+                    } />
+
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+            </main>
+
+            <AIChatBot />
+        </Router>
+    );
 }
 
 export default function App() {
-  return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
-  );
+    return (
+        <AuthProvider>
+            <AppContent />
+        </AuthProvider>
+    );
 }
