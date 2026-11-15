@@ -101,16 +101,6 @@ export default function BookDetail() {
               </span>
             </div>
 
-            {/* Read-only notification box */}
-            <div style={{
-              marginTop: '16px', padding: '12px 14px', background: '#f8fafc',
-              borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.82rem',
-              color: '#475569', lineHeight: 1.5, textAlign: 'left'
-            }}>
-              <i className="fa-solid fa-circle-info" style={{ marginRight: '6px', color: '#2563eb' }}></i>
-              Hiện tại thư viện chỉ mở chế độ <strong>tra cứu thông tin, đọc thử online & tải tài liệu</strong>.
-              Nếu bạn muốn mượn sách giấy, vui lòng liên hệ trực tiếp tại quầy thủ thư.
-            </div>
           </div>
 
           {/* ONLINE DOCUMENTS & PREVIEW SECTION */}
