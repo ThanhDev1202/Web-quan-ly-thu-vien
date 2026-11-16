@@ -28,6 +28,7 @@ export default function Navbar() {
 
             {(user?.role === 'admin' || user?.role === 'librarian') && (
               <>
+                <Link to="/dashboard"><i className="fa-solid fa-chart-line"></i> Thống kê</Link>
                 <Link to="/manage-books"><i className="fa-solid fa-book-medical"></i> Quản lý sách</Link>
                 <Link to="/manage-borrows"><i className="fa-solid fa-clipboard-check"></i> Duyệt mượn/trả</Link>
               </>

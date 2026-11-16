@@ -13,7 +13,7 @@ import BorrowManagement from './pages/BorrowManagement';
 import ReservationManagement from './pages/ReservationManagement';
 import AuditLogs from './pages/AuditLogs';
 import AdminUserManagement from './pages/AdminUserManagement';
-
+import Dashboard from './pages/Dashboard';
 // Protected Route Wrapper
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { isAuthenticated, user } = useAuth();
@@ -37,6 +37,7 @@ function AppContent() {
           <Route path="/" element={<BookCatalog />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/dashboard"element={<ProtectedRoute allowedRoles={['admin', 'librarian']}><Dashboard /></ProtectedRoute>}/>
           <Route path="/my-borrows" element={
             <ProtectedRoute>
               <BorrowManagement />

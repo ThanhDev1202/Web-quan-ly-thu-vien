@@ -14,6 +14,7 @@ const borrowRoutes = require('./routes/borrow');
 const reservationRoutes = require('./routes/reservations');
 const auditRoutes = require('./routes/audit');
 const previewRoutes = require('./routes/previews');
+const statisticsRoutes = require('./routes/statistics');
 
 const app = express();
 app.use(cors());
@@ -24,6 +25,7 @@ app.use('/api/auth', authRoutes);
 
 // Protected – all following routes require JWT
 app.use(verifyToken);
+app.use('/api/statistics', statisticsRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/books', bookRoutes);
 app.use('/api/categories', categoryRoutes);
