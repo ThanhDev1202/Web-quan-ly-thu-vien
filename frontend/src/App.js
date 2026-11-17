@@ -6,6 +6,7 @@ import AIChatBot from './components/AIChatBot';
 
 // Pages
 import BookCatalog from './pages/BookCatalog';
+import BookDetail from './pages/BookDetail';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ManageBooks from './pages/ManageBooks';
@@ -35,6 +36,7 @@ function AppContent() {
       <main>
         <Routes>
           <Route path="/" element={<BookCatalog />} />
+          <Route path="/books/:id" element={<BookDetail />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/my-borrows" element={

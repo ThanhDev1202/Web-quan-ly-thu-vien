@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { BookCopy, Book, BorrowRecord, User } = require('../models');
-const { authorize } = require('../middleware/auth');
+const { verifyToken, authorize } = require('../middleware/auth');
 
 // Add a single copy – admin or librarian
-router.post('/', authorize('admin','librarian'), async (req, res) => {
+router.post('/', verifyToken, authorize('admin','librarian'), async (req, res) => {
   const { bookId, accessionCode, status } = req.body;
   try {
     const copy = await BookCopy.create({ bookId, accessionCode, status: status || 'available' });
@@ -15,7 +15,7 @@ router.post('/', authorize('admin','librarian'), async (req, res) => {
 });
 
 // Batch add multiple copies for a book – admin or librarian
-router.post('/batch', authorize('admin','librarian'), async (req, res) => {
+router.post('/batch', verifyToken, authorize('admin','librarian'), async (req, res) => {
   const { bookId, codes, prefix, startNumber, quantity, status } = req.body;
   try {
     let copyList = [];
@@ -72,7 +72,7 @@ router.post('/batch', authorize('admin','librarian'), async (req, res) => {
   }
 });
 
-// List all copies
+// List all copies – public
 router.get('/', async (req, res) => {
   try {
     const copies = await BookCopy.findAll({
@@ -85,7 +85,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// List all copies of a specific book
+// List all copies of a specific book – public
 router.get('/book/:bookId', async (req, res) => {
   try {
     const copies = await BookCopy.findAll({
@@ -107,7 +107,7 @@ router.get('/book/:bookId', async (req, res) => {
 });
 
 // Update copy status – admin/librarian
-router.put('/:id', authorize('admin','librarian'), async (req, res) => {
+router.put('/:id', verifyToken, authorize('admin','librarian'), async (req, res) => {
   const { status } = req.body;
   try {
     const copy = await BookCopy.findByPk(req.params.id);
@@ -120,7 +120,7 @@ router.put('/:id', authorize('admin','librarian'), async (req, res) => {
 });
 
 // Delete a copy – admin/librarian
-router.delete('/:id', authorize('admin','librarian'), async (req, res) => {
+router.delete('/:id', verifyToken, authorize('admin','librarian'), async (req, res) => {
   try {
     const copy = await BookCopy.findByPk(req.params.id);
     if (!copy) return res.status(404).json({ message: 'Không tìm thấy bản sao' });
