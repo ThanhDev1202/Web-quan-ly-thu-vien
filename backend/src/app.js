@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const { sequelize } = require('./models');
 const { verifyToken } = require('./middleware/auth');
 
@@ -14,27 +15,32 @@ const borrowRoutes = require('./routes/borrow');
 const reservationRoutes = require('./routes/reservations');
 const auditRoutes = require('./routes/audit');
 const previewRoutes = require('./routes/previews');
+const uploadRoutes = require('./routes/upload');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Public
+// Serve static uploads folder for cover images and preview documents
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// Public & hybrid routes (controllers manage token permissions internally)
 app.use('/api/auth', authRoutes);
-
-// Protected – all following routes require JWT
-app.use(verifyToken);
-app.use('/api/users', userRoutes);
 app.use('/api/books', bookRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/authors', authorRoutes);
 app.use('/api/copies', copyRoutes);
-app.use('/api/borrow', borrowRoutes);
-app.use('/api/reservations', reservationRoutes);
-app.use('/api/audit', auditRoutes);
 app.use('/api/previews', previewRoutes);
+app.use('/api/upload', uploadRoutes);
 
-// Global error handler (fallback)
+// Protected routes (strictly require valid JWT)
+app.use('/api/users', verifyToken, userRoutes);
+app.use('/api/borrow', verifyToken, borrowRoutes);
+app.use('/api/reservations', verifyToken, reservationRoutes);
+app.use('/api/audit', verifyToken, auditRoutes);
+
+// Global error handler
 app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: err.message || 'Server error' });

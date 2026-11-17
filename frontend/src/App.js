@@ -6,6 +6,7 @@ import AIChatBot from './components/AIChatBot';
 
 // Pages
 import BookCatalog from './pages/BookCatalog';
+import BookDetail from './pages/BookDetail';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ManageBooks from './pages/ManageBooks';
@@ -13,6 +14,7 @@ import BorrowManagement from './pages/BorrowManagement';
 import ReservationManagement from './pages/ReservationManagement';
 import AuditLogs from './pages/AuditLogs';
 import ChangePassword from './pages/ChangePassword';
+import AdminUserManagement from './pages/AdminUserManagement';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -35,6 +37,7 @@ function AppContent() {
       <main>
         <Routes>
           <Route path="/" element={<BookCatalog />} />
+          <Route path="/books/:id" element={<BookDetail />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/my-borrows" element={
@@ -66,6 +69,11 @@ function AppContent() {
           <Route path="/audit-logs" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AuditLogs />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/users" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminUserManagement />
             </ProtectedRoute>
           } />
           <Route path="*" element={<Navigate to="/" replace />} />
