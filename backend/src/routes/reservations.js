@@ -1,38 +1,47 @@
 const express = require('express');
 const router = express.Router();
-const { Reservation, Book } = require('../models');
 const { authorize } = require('../middleware/auth');
+const reservationService = require('../services/reservation.service');
 
-// Create a reservation – reader or librarian
-router.post('/', authorize('reader','librarian','admin'), async (req, res) => {
+// POST /api/reservations – create reservation (reader, librarian, admin)
+router.post('/', authorize('reader', 'librarian', 'admin'), async (req, res) => {
   const { bookId, expirationDate } = req.body;
   try {
-    const reservation = await Reservation.create({
+    const reservation = await reservationService.createReservation({
       userId: req.user.id,
       bookId,
       expirationDate,
-      status: 'pending',
     });
     res.status(201).json(reservation);
-  } catch (e) {
-    res.status(400).json({ error: e.message });
+  } catch (err) {
+    res.status(err.statusCode || 400).json({ error: err.message });
   }
 });
 
-// List reservations for current user – reader sees own, admin/librarian sees all
-router.get('/', authorize('reader','librarian','admin'), async (req, res) => {
-  const where = req.user.role === 'reader' ? { userId: req.user.id } : {};
-  const reservations = await Reservation.findAll({ where, include: [{ model: Book }] });
-  res.json(reservations);
+// GET /api/reservations – list reservations (reader: own, admin/librarian: all)
+router.get('/', authorize('reader', 'librarian', 'admin'), async (req, res) => {
+  try {
+    const reservations = await reservationService.getReservations({
+      userRole: req.user.role,
+      userId: req.user.id,
+    });
+    res.json(reservations);
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
 });
 
-// Update reservation status – admin/librarian
-router.put('/:id', authorize('admin','librarian'), async (req, res) => {
-  const { status } = req.body;
-  const reservation = await Reservation.findByPk(req.params.id);
-  if (!reservation) return res.status(404).json({ message: 'Reservation not found' });
-  await reservation.update({ status });
-  res.json(reservation);
+// PUT /api/reservations/:id – update reservation status (admin, librarian)
+router.put('/:id', authorize('admin', 'librarian'), async (req, res) => {
+  try {
+    const reservation = await reservationService.updateReservationStatus(
+      req.params.id,
+      req.body.status
+    );
+    res.json(reservation);
+  } catch (err) {
+    res.status(err.statusCode || 400).json({ message: err.message, error: err.message });
+  }
 });
 
 module.exports = router;

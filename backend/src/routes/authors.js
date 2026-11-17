@@ -1,26 +1,25 @@
 const express = require('express');
 const router = express.Router();
-const { Author } = require('../models');
 const { verifyToken, authorize } = require('../middleware/auth');
+const authorService = require('../services/author.service');
 
-// Create author – admin or librarian
-router.post('/', verifyToken, authorize('admin','librarian'), async (req, res) => {
-  const { name, biography } = req.body;
+// POST /api/authors – create author (admin or librarian)
+router.post('/', verifyToken, authorize('admin', 'librarian'), async (req, res) => {
   try {
-    const author = await Author.create({ name, biography });
+    const author = await authorService.createAuthor(req.body);
     res.status(201).json(author);
-  } catch (e) {
-    res.status(400).json({ error: e.message });
+  } catch (err) {
+    res.status(err.statusCode || 400).json({ error: err.message });
   }
 });
 
-// Get all authors – public
+// GET /api/authors – get all authors (public)
 router.get('/', async (req, res) => {
   try {
-    const authors = await Author.findAll();
+    const authors = await authorService.getAllAuthors();
     res.json(authors);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ error: err.message });
   }
 });
 

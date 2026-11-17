@@ -1,71 +1,55 @@
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const User = require('../models/user');
-const {verifyToken} = require('../middleware/auth');
-require('dotenv').config();
+const { verifyToken } = require('../middleware/auth');
+const authService = require('../services/auth.service');
 
-
-const authService = require('../services/auth.services');
-
-
-// REGISTER
+// POST /api/auth/register
 router.post('/register', async (req, res) => {
-    try {
-        const user = await authService.register(req.body);
-
-        return res.status(201).json({
-            message: 'Register successful',
-            data: user
-        });
-
-    } catch (e) {
-        return res.status(400).json({
-            error: e.message
-        });
-    }
+  try {
+    const user = await authService.register(req.body);
+    return res.status(201).json({
+      message: 'Register successful',
+      data: user,
+    });
+  } catch (err) {
+    return res.status(err.statusCode || 400).json({
+      error: err.message,
+    });
+  }
 });
 
-// Login
+// POST /api/auth/login
 router.post('/login', async (req, res) => {
-    try {
-        const { email, password } = req.body;
-        const { token, user } = await authService.login({ email, password });
-
-        return res.status(200).json({
-            message: 'Login successful',
-            token,
-            user
-        });
-    } catch (e) {
-        return res.status(401).json({
-            error: e.message
-        });
-    }
+  try {
+    const { email, password } = req.body;
+    const { token, user } = await authService.login({ email, password });
+    return res.status(200).json({
+      message: 'Login successful',
+      token,
+      user,
+    });
+  } catch (err) {
+    return res.status(err.statusCode || 401).json({
+      error: err.message,
+    });
+  }
 });
-// Change Password
+
+// PUT /api/auth/changepassword
 router.put('/changepassword', verifyToken, async (req, res) => {
-    try {
-        const { oldPassword, newPassword } = req.body;
-
-        const userID = req.user.id;
-
-        const result = await authService.ChangePassword(
-            userID,
-            oldPassword,
-            newPassword
-        );
-
-        return res.status(200).json(result);
-
-    } catch (e) {
-        return res.status(400).json({
-            error: e.message
-        });
-    }
+  try {
+    const { oldPassword, newPassword } = req.body;
+    const result = await authService.changePassword(
+      req.user.id,
+      oldPassword,
+      newPassword
+    );
+    return res.status(200).json(result);
+  } catch (err) {
+    return res.status(err.statusCode || 400).json({
+      error: err.message,
+    });
+  }
 });
-
-
 
 module.exports = router;
