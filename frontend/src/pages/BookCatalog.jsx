@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import api from '../api/api';
-import { useAuth } from '../context/AuthContext';
+import { Link } from 'react-router-dom';
+import api, { getFullFileUrl } from '../api/api';
 
 export default function BookCatalog() {
   const [books, setBooks] = useState([]);
@@ -9,8 +9,6 @@ export default function BookCatalog() {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState('');
-  const { isAuthenticated, user } = useAuth();
 
   useEffect(() => {
     fetchData();
@@ -34,47 +32,16 @@ export default function BookCatalog() {
     }
   };
 
-  const getAvailableCopies = (bookId) => {
-    return copies.filter(c => c.bookId === bookId && c.status === 'available');
+  const getAvailableCopies = (book) => {
+    if (book.BookCopies) {
+      return book.BookCopies.filter(c => c.status === 'available');
+    }
+    return copies.filter(c => c.bookId === book.id && c.status === 'available');
   };
 
-  const handleBorrowRequest = async (copyId) => {
-    if (!isAuthenticated) {
-      alert('Vui lòng đăng nhập để yêu cầu mượn sách!');
-      return;
-    }
-    const due = new Date();
-    due.setDate(due.getDate() + 14); // 14 days loan
-
-    try {
-      await api.post('/borrow/request', {
-        copyId,
-        dueDate: due.toISOString()
-      });
-      setMessage('✅ Gửi yêu cầu mượn sách thành công! Vui lòng chờ thủ thư duyệt.');
-      fetchData();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Không thể yêu cầu mượn sách');
-    }
-  };
-
-  const handleReserve = async (bookId) => {
-    if (!isAuthenticated) {
-      alert('Vui lòng đăng nhập để đặt trước sách!');
-      return;
-    }
-    const exp = new Date();
-    exp.setDate(exp.getDate() + 3);
-
-    try {
-      await api.post('/reservations', {
-        bookId,
-        expirationDate: exp.toISOString()
-      });
-      setMessage('✅ Đặt trước sách thành công! Hãy đến nhận trước hạn giữ sách.');
-    } catch (err) {
-      alert(err.response?.data?.error || 'Không thể đặt trước sách');
-    }
+  const getTotalCopiesCount = (book) => {
+    if (book.BookCopies) return book.BookCopies.length;
+    return copies.filter(c => c.bookId === book.id).length;
   };
 
   const filteredBooks = books.filter(b => {
@@ -92,10 +59,10 @@ export default function BookCatalog() {
         <div>
           <h1 style={{ fontSize: '1.8rem', color: '#0f172a', fontWeight: 800 }}>
             <i className="fa-solid fa-books" style={{ color: '#2563eb', marginRight: '10px' }}></i>
-            Kho Sách & Tài Liệu Thư Viện
+            Tra Cứu Kho Sách & Tài Liệu Thư Viện
           </h1>
           <p style={{ color: '#64748b', marginTop: '4px' }}>
-            Tra cứu thông tin, tình trạng bản sao và mượn sách trực tuyến
+            Tra cứu thông tin danh mục, đọc thử trực tuyến và tải tài liệu sách điện tử
           </p>
           <div className="tech-pill-container">
             <span className="tech-pill"><i className="fa-solid fa-sparkles"></i> AI Assistant Ready</span>
@@ -104,12 +71,6 @@ export default function BookCatalog() {
           </div>
         </div>
       </div>
-
-      {message && (
-        <div style={{ background: '#dcfce7', color: '#15803d', padding: '12px 18px', borderRadius: '8px', marginTop: '16px', fontWeight: '500' }}>
-          {message}
-        </div>
-      )}
 
       {/* Search & Filter Bar */}
       <div style={{ display: 'flex', gap: '12px', marginTop: '24px', flexWrap: 'wrap' }}>
@@ -150,64 +111,87 @@ export default function BookCatalog() {
       ) : (
         <div className="grid">
           {filteredBooks.map(book => {
-            const availCopies = getAvailableCopies(book.id);
-            const totalCopies = copies.filter(c => c.bookId === book.id).length;
+            const availCopies = getAvailableCopies(book);
+            const totalCopies = getTotalCopiesCount(book);
+            const hasPreview = book.BookPreviews && book.BookPreviews.length > 0;
 
             return (
               <div key={book.id} className="card">
-                <div style={{ height: '160px', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                {/* Book Cover Image linking to Detail */}
+                <Link
+                  to={`/books/${book.id}`}
+                  style={{
+                    height: '200px', background: '#f1f5f9', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', overflow: 'hidden', position: 'relative', textDecoration: 'none'
+                  }}
+                  title="Nhấn để xem chi tiết sách"
+                >
                   {book.coverImage ? (
-                    <img src={book.coverImage} alt={book.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img
+                      src={getFullFileUrl(book.coverImage)}
+                      alt={book.title}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = 'https://via.placeholder.com/280x200?text=No+Cover';
+                      }}
+                    />
                   ) : (
-                    <i className="fa-solid fa-book" style={{ fontSize: '4rem', color: '#94a3b8' }}></i>
+                    <div style={{ textAlign: 'center', color: '#94a3b8' }}>
+                      <i className="fa-solid fa-book" style={{ fontSize: '3.5rem', marginBottom: '8px' }}></i>
+                      <div style={{ fontSize: '0.8rem' }}>Chưa có ảnh bìa</div>
+                    </div>
                   )}
-                </div>
+
+                  {/* Online preview ribbon if available */}
+                  {hasPreview && (
+                    <span style={{
+                      position: 'absolute', top: '10px', right: '10px', background: '#ef4444',
+                      color: 'white', fontSize: '0.72rem', fontWeight: 700, padding: '3px 8px',
+                      borderRadius: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+                    }}>
+                      <i className="fa-solid fa-file-pdf"></i> Đọc online
+                    </span>
+                  )}
+                </Link>
 
                 <div className="card-body">
                   <span className="badge" style={{ alignSelf: 'flex-start', background: '#ede9fe', color: '#6d28d9', marginBottom: '8px' }}>
                     {book.Category?.name || 'Chung'}
                   </span>
-                  <h3 className="card-title">{book.title}</h3>
+                  
+                  <Link to={`/books/${book.id}`} style={{ textDecoration: 'none' }}>
+                    <h3 className="card-title" style={{ transition: 'color 0.2s' }}>
+                      {book.title}
+                    </h3>
+                  </Link>
+
                   <p className="card-subtitle">
                     <i className="fa-solid fa-barcode"></i> ISBN: {book.isbn || 'Chưa cập nhật'} | Năm: {book.publicationYear || 'N/A'}
                   </p>
+                  
                   <p className="card-text">
-                    {book.description ? (book.description.length > 100 ? book.description.substring(0, 100) + '...' : book.description) : 'Không có mô tả chi tiết.'}
+                    {book.description ? (book.description.length > 90 ? book.description.substring(0, 90) + '...' : book.description) : 'Không có mô tả chi tiết.'}
                   </p>
                   
                   <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                     <span>
-                      Khả dụng: <strong>{availCopies.length}</strong> / {totalCopies} bản
+                      Tồn kho: <strong>{availCopies.length}</strong> / {totalCopies} cuốn
                     </span>
                     <span className={`badge ${availCopies.length > 0 ? 'badge-available' : 'badge-borrowed'}`}>
-                      {availCopies.length > 0 ? 'Còn sách' : 'Hết bản sao'}
+                      {availCopies.length > 0 ? 'Còn sách tại quầy' : 'Hết bản sao'}
                     </span>
                   </div>
                 </div>
 
-                <div className="card-footer">
-                  {availCopies.length > 0 ? (
-                    <button 
-                      className="btn btn-primary btn-sm" 
-                      onClick={() => handleBorrowRequest(availCopies[0].id)}
-                    >
-                      <i className="fa-solid fa-hand-holding-hand"></i> Mượn sách
-                    </button>
-                  ) : (
-                    <button 
-                      className="btn btn-secondary btn-sm" 
-                      onClick={() => handleReserve(book.id)}
-                    >
-                      <i className="fa-solid fa-bookmark"></i> Đặt trước
-                    </button>
-                  )}
-
-                  <button 
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => alert(`Chi tiết sách: ${book.title}\nNXB: ${book.publisher || 'N/A'}\nSố lượng còn: ${availCopies.length}`)}
+                <div className="card-footer" style={{ justifyContent: 'space-between' }}>
+                  <Link 
+                    to={`/books/${book.id}`}
+                    className="btn btn-primary btn-sm"
+                    style={{ textDecoration: 'none', width: '100%', justifyContent: 'center' }}
                   >
-                    Xem chi tiết
-                  </button>
+                    <i className="fa-solid fa-book-open"></i> Xem chi tiết & Đọc thử
+                  </Link>
                 </div>
               </div>
             );

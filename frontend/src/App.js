@@ -7,6 +7,7 @@ import AIChatBot from './components/AIChatBot';
 
 // Pages
 import BookCatalog from './pages/BookCatalog';
+import BookDetail from './pages/BookDetail';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ManageBooks from './pages/ManageBooks';

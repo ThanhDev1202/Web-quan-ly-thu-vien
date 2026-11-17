@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { Author } = require('../models');
-const { authorize } = require('../middleware/auth');
+const { verifyToken, authorize } = require('../middleware/auth');
 
 // Create author – admin or librarian
-router.post('/', authorize('admin','librarian'), async (req, res) => {
+router.post('/', verifyToken, authorize('admin','librarian'), async (req, res) => {
   const { name, biography } = req.body;
   try {
     const author = await Author.create({ name, biography });
@@ -16,8 +16,12 @@ router.post('/', authorize('admin','librarian'), async (req, res) => {
 
 // Get all authors – public
 router.get('/', async (req, res) => {
-  const authors = await Author.findAll();
-  res.json(authors);
+  try {
+    const authors = await Author.findAll();
+    res.json(authors);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 module.exports = router;

@@ -4,8 +4,11 @@ const router = express.Router();
 
 const userService = require('../services/user.services');
 const { authorize } = require('../middleware/auth');
+const bcrypt = require('bcryptjs');
 
-// Get all users – admin only
+// ─────────────────────────────────────────────────
+// GET all users – admin only (with optional filters)
+// ─────────────────────────────────────────────────
 router.get('/', authorize('admin'), async (req, res) => {
     try {
         const users = await userService.getAllUsers();
@@ -57,7 +60,9 @@ router.put('/:id', authorize('admin', 'reader', 'librarian'), async (req, res) =
     }
 });
 
-// Delete user – admin only
+// ─────────────────────────────────────────────────
+// DELETE user – admin only
+// ─────────────────────────────────────────────────
 router.delete('/:id', authorize('admin'), async (req, res) => {
     try {
         const deleted = await userService.deleteUser(req.params.id);
