@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -43,6 +42,7 @@ export default function Navbar() {
                 <Link to="/manage-books">
                   <i className="fa-solid fa-book-medical"></i> Quản lý sách
                 </Link>
+
                 <Link to="/manage-borrows">
                   <i className="fa-solid fa-clipboard-check"></i> Duyệt mượn/trả
                 </Link>
@@ -50,12 +50,14 @@ export default function Navbar() {
             )}
 
             {user?.role === 'admin' && (
-              <Link to="/audit-logs">
-                <i className="fa-solid fa-shield-halved"></i> Nhật ký hệ thống
-              </Link>
               <>
-                <Link to="/admin/users"><i className="fa-solid fa-users-gear"></i> Quản lý tài khoản</Link>
-                <Link to="/audit-logs"><i className="fa-solid fa-shield-halved"></i> Nhật ký hệ thống</Link>
+                <Link to="/admin/users">
+                  <i className="fa-solid fa-users-gear"></i> Quản lý tài khoản
+                </Link>
+
+                <Link to="/audit-logs">
+                  <i className="fa-solid fa-shield-halved"></i> Nhật ký hệ thống
+                </Link>
               </>
             )}
           </>
