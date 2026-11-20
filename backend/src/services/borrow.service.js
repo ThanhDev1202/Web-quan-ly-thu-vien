@@ -1,92 +1,500 @@
-const { BorrowRecord, BookCopy, User } = require('../models');
+
+const { BorrowRecord, BookCopy, User, sequelize } = require('../models');
+const { Op } = require('sequelize');
+
+/**
+ * Helper: Create an error with HTTP status code
+ */
+function createError(message, statusCode) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
+/**
+ * Common includes
+ *
+ * user: Reader who borrows the book
+ * librarian: Staff who processes the borrow request
+ */
+const borrowIncludes = [
+  { model: BookCopy },
+  { model: User, as: 'user' },
+  { model: User, as: 'librarian' },
+];
 
 /**
  * Reader requests to borrow a copy
+ *
+ * - Lock the book copy to prevent concurrent requests.
+ * - Prevent multiple active requests for the same copy.
+ * - Create a pending borrow record.
  */
 async function requestBorrow({ userId, copyId, dueDate }) {
-  const copy = await BookCopy.findByPk(copyId);
-  if (!copy) {
-    const error = new Error('Copy not found');
-    error.statusCode = 404;
-    throw error;
-  }
+  return await sequelize.transaction(async (transaction) => {
+    const copy = await BookCopy.findByPk(copyId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
 
-  if (copy.status !== 'available') {
-    const error = new Error('Copy not available');
-    error.statusCode = 400;
-    throw error;
-  }
+    if (!copy) {
+      throw createError('Copy not found', 404);
+    }
 
-  return await BorrowRecord.create({
-    userId,
-    copyId,
-    librarianId: null,
-    borrowDate: new Date(),
-    dueDate,
-    status: 'pending',
+    if (copy.status !== 'available') {
+      throw createError('Copy not available', 400);
+    }
+
+    const date = new Date(dueDate);
+
+    if (
+      !dueDate ||
+      Number.isNaN(date.getTime()) ||
+      date <= new Date()
+    ) {
+      throw createError('Invalid due date', 400);
+    }
+
+    // Check whether this copy already has an active borrow request
+    const existingRequest = await BorrowRecord.findOne({
+      where: {
+        copyId,
+        status: {
+          [Op.in]: ['pending', 'approved', 'borrowed'],
+        },
+      },
+      transaction,
+    });
+
+    if (existingRequest) {
+      throw createError(
+        'This copy already has an active borrow request',
+        409
+      );
+    }
+
+    return await BorrowRecord.create({
+      userId,
+      copyId,
+      librarianId: null,
+      borrowDate: null,
+      dueDate: date,
+      status: 'pending',
+    }, { transaction });
   });
 }
 
 /**
  * Admin or Librarian approves borrow request
+ *
+ * BookCopy: available -> reserved
+ * BorrowRecord: pending -> approved
  */
 async function approveBorrow(id, librarianId) {
-  const record = await BorrowRecord.findByPk(id);
-  if (!record) {
-    const error = new Error('Record not found');
-    error.statusCode = 404;
-    throw error;
-  }
+  return await sequelize.transaction(async (transaction) => {
+    const record = await BorrowRecord.findByPk(id, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
 
-  if (record.status !== 'pending') {
-    const error = new Error('Record not pending');
-    error.statusCode = 400;
-    throw error;
-  }
+    if (!record) {
+      throw createError('Record not found', 404);
+    }
 
-  await BookCopy.update({ status: 'borrowed' }, { where: { id: record.copyId } });
-  await record.update({ status: 'borrowed', librarianId, borrowDate: new Date() });
-  return record;
+    if (record.status !== 'pending') {
+      throw createError('Record not pending', 400);
+    }
+
+    const copy = await BookCopy.findByPk(record.copyId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!copy || copy.status !== 'available') {
+      throw createError('Book copy is not available', 409);
+    }
+
+    await copy.update({
+      status: 'reserved',
+    }, { transaction });
+
+    await record.update({
+      status: 'approved',
+      librarianId,
+    }, { transaction });
+
+    return record;
+  });
 }
 
 /**
- * Get borrow records (readers see own records, librarian/admin see all)
+ * Reject borrow request
+ *
+ * Can reject pending or approved requests.
+ * If already approved, release the reserved copy.
+ */
+async function rejectBorrow(id, librarianId) {
+  return await sequelize.transaction(async (transaction) => {
+    const record = await BorrowRecord.findByPk(id, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!record) {
+      throw createError('Record not found', 404);
+    }
+
+    if (!['pending', 'approved'].includes(record.status)) {
+      throw createError('Cannot reject this request', 400);
+    }
+
+    // Release reserved copy if request was already approved
+    if (record.status === 'approved') {
+      const copy = await BookCopy.findByPk(record.copyId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!copy) {
+        throw createError('Book copy not found', 404);
+      }
+
+      if (copy.status !== 'reserved') {
+        throw createError('Book copy is not reserved', 409);
+      }
+
+      await copy.update({
+        status: 'available',
+      }, { transaction });
+    }
+
+    await record.update({
+      status: 'rejected',
+      librarianId,
+    }, { transaction });
+
+    return record;
+  });
+}
+
+/**
+ * Reader cancels their own pending borrow request
+ */
+async function cancelBorrow(id, userId) {
+  return await sequelize.transaction(async (transaction) => {
+    const record = await BorrowRecord.findByPk(id, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!record) {
+      throw createError('Record not found', 404);
+    }
+
+    if (String(record.userId) !== String(userId)) {
+      throw createError('You cannot cancel this request', 403);
+    }
+
+    if (record.status !== 'pending') {
+      throw createError('Cannot cancel this request', 400);
+    }
+
+    await record.update({
+      status: 'cancelled',
+    }, { transaction });
+
+    return record;
+  });
+}
+
+/**
+ * Confirm handing the book to reader
+ *
+ * BookCopy: reserved -> borrowed
+ * BorrowRecord: approved -> borrowed
+ */
+async function confirmHandover(id, librarianId) {
+  return await sequelize.transaction(async (transaction) => {
+    const record = await BorrowRecord.findByPk(id, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!record) {
+      throw createError('Record not found', 404);
+    }
+
+    if (record.status !== 'approved') {
+      throw createError('Record is not approved', 400);
+    }
+
+    const copy = await BookCopy.findByPk(record.copyId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!copy || copy.status !== 'reserved') {
+      throw createError('Book copy is not reserved', 409);
+    }
+
+    await copy.update({
+      status: 'borrowed',
+    }, { transaction });
+
+    await record.update({
+      status: 'borrowed',
+      borrowDate: new Date(),
+      librarianId,
+    }, { transaction });
+
+    return record;
+  });
+}
+
+/**
+ * Get all borrow records
+ *
+ * Reader: only their own records.
+ * Admin/Librarian: all records.
  */
 async function getBorrowRecords({ userRole, userId }) {
   const where = userRole === 'reader' ? { userId } : {};
 
   return await BorrowRecord.findAll({
     where,
-    include: [{ model: BookCopy }],
+    include: borrowIncludes,
     order: [['id', 'DESC']],
   });
 }
 
 /**
  * Return a borrowed copy
+ *
+ * Reader can only return their own borrow record.
+ * Admin/Librarian can return on behalf of a reader.
  */
-async function returnCopy(id) {
-  const record = await BorrowRecord.findByPk(id);
-  if (!record) {
-    const error = new Error('Record not found');
-    error.statusCode = 404;
-    throw error;
+async function returnCopy(id, { userId, userRole }) {
+  return await sequelize.transaction(async (transaction) => {
+    const record = await BorrowRecord.findByPk(id, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!record) {
+      throw createError('Record not found', 404);
+    }
+
+    if (!['reader', 'admin', 'librarian'].includes(userRole)) {
+      throw createError('Permission denied', 403);
+    }
+
+    if (
+      userRole === 'reader' &&
+      String(record.userId) !== String(userId)
+    ) {
+      throw createError('You cannot return this book', 403);
+    }
+
+    if (record.status !== 'borrowed') {
+      throw createError('Book is not currently borrowed', 400);
+    }
+
+    const copy = await BookCopy.findByPk(record.copyId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!copy) {
+      throw createError('Book copy not found', 404);
+    }
+
+    if (copy.status !== 'borrowed') {
+      throw createError('Book copy is not in borrowed status', 409);
+    }
+
+    await copy.update({
+      status: 'available',
+    }, { transaction });
+
+    await record.update({
+      status: 'returned',
+      returnDate: new Date(),
+    }, { transaction });
+
+    return record;
+  });
+}
+
+/**
+ * Get books that are currently borrowed
+ *
+ * Sorted by due date so staff can monitor upcoming deadlines.
+ */
+async function getBorrowingRecords({ userRole, userId }) {
+  const where = {
+    status: 'borrowed',
+    ...(userRole === 'reader' ? { userId } : {}),
+  };
+
+  return await BorrowRecord.findAll({
+    where,
+    include: borrowIncludes,
+    order: [['dueDate', 'ASC']],
+  });
+}
+
+/**
+ * Get overdue borrow records
+ */
+async function getOverdueBorrows() {
+  return await BorrowRecord.findAll({
+    where: {
+      status: 'borrowed',
+      dueDate: {
+        [Op.lt]: new Date(),
+      },
+    },
+    include: borrowIncludes,
+    order: [['dueDate', 'ASC']],
+  });
+}
+
+/**
+ * Get overdue records with overdue days
+ */
+async function getOverdueDetails() {
+  const records = await getOverdueBorrows();
+
+  return records.map((record) => {
+    const data = record.toJSON();
+
+    const overdueDays = Math.floor(
+      (Date.now() - new Date(record.dueDate).getTime()) /
+      (1000 * 60 * 60 * 24)
+    );
+
+    return {
+      ...data,
+      overdueDays,
+    };
+  });
+}
+
+/**
+ * Get borrow history
+ *
+ * Reader: own history.
+ * Admin/Librarian: all history.
+ */
+async function getBorrowHistory({ userRole, userId }) {
+  const where = userRole === 'reader' ? { userId } : {};
+
+  return await BorrowRecord.findAll({
+    where,
+    include: borrowIncludes,
+    order: [['id', 'DESC']],
+  });
+}
+
+/**
+ * Extend borrowing period
+ *
+ * Only borrowed records can be extended.
+ * New due date must be later than the current due date.
+ */
+async function extendBorrow(id, newDueDate) {
+  return await sequelize.transaction(async (transaction) => {
+    const record = await BorrowRecord.findByPk(id, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!record) {
+      throw createError('Record not found', 404);
+    }
+
+    if (record.status !== 'borrowed') {
+      throw createError('Cannot extend this borrow', 400);
+    }
+
+    const date = new Date(newDueDate);
+
+    if (
+      !newDueDate ||
+      Number.isNaN(date.getTime()) ||
+      date <= new Date(record.dueDate)
+    ) {
+      throw createError('Invalid extension date', 400);
+    }
+
+    await record.update({
+      dueDate: date,
+    }, { transaction });
+
+    return record;
+  });
+}
+
+/**
+ * Get borrow statistics
+ *
+ * Count borrow records by status and total overdue records.
+ */
+async function getBorrowStatistics() {
+  const rows = await BorrowRecord.findAll({
+    attributes: [
+      'status',
+      [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+    ],
+    group: ['status'],
+    raw: true,
+  });
+
+  const statistics = {
+    total: 0,
+    pending: 0,
+    approved: 0,
+    borrowed: 0,
+    returned: 0,
+    rejected: 0,
+    cancelled: 0,
+    overdue: 0,
+  };
+
+  for (const row of rows) {
+    const count = Number(row.count);
+
+    if (Object.prototype.hasOwnProperty.call(statistics, row.status)) {
+      statistics[row.status] = count;
+    }
+
+    statistics.total += count;
   }
 
-  if (record.status !== 'borrowed') {
-    const error = new Error('Not borrowed');
-    error.statusCode = 400;
-    throw error;
-  }
+  statistics.overdue = await BorrowRecord.count({
+    where: {
+      status: 'borrowed',
+      dueDate: {
+        [Op.lt]: new Date(),
+      },
+    },
+  });
 
-  await BookCopy.update({ status: 'available' }, { where: { id: record.copyId } });
-  await record.update({ status: 'returned', returnDate: new Date() });
-  return record;
+  return statistics;
 }
 
 module.exports = {
   requestBorrow,
   approveBorrow,
+  rejectBorrow,
+  cancelBorrow,
+  confirmHandover,
   getBorrowRecords,
   returnCopy,
+  getBorrowingRecords,
+  getOverdueBorrows,
+  getOverdueDetails,
+  getBorrowHistory,
+  extendBorrow,
+  getBorrowStatistics,
 };

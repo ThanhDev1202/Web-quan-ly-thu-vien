@@ -1,4 +1,6 @@
+
 const sequelize = require('../config/db');
+
 const User = require('./user');
 const Category = require('./category');
 const Author = require('./author');
@@ -10,46 +12,155 @@ const Reservation = require('./reservation');
 const AuditLog = require('./auditLog');
 const BookPreview = require('./bookPreview');
 
-// Associations
-User.hasMany(BorrowRecord, { foreignKey: 'user_id' });
-BorrowRecord.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
+// =====================================
+// USER - BORROW RECORD
+// =====================================
 
-User.hasMany(Reservation, { foreignKey: 'user_id' });
-Reservation.belongsTo(User, { foreignKey: 'user_id' });
+// User who borrows the book
+User.hasMany(BorrowRecord, {
+    as: 'borrowRecords',
+    foreignKey: 'userId',
+});
 
-User.hasMany(AuditLog, { foreignKey: 'user_id' });
-AuditLog.belongsTo(User, { foreignKey: 'user_id' });
+BorrowRecord.belongsTo(User, {
+    as: 'user',
+    foreignKey: 'userId',
+});
 
-Category.hasMany(Book, { foreignKey: 'category_id' });
-Book.belongsTo(Category, { foreignKey: 'category_id' });
+// Librarian who processes the borrow request
+User.hasMany(BorrowRecord, {
+    as: 'processedBorrowRecords',
+    foreignKey: 'librarianId',
+});
 
-Book.belongsToMany(Author, { through: BookAuthor, foreignKey: 'book_id', otherKey: 'author_id' });
-Author.belongsToMany(Book, { through: BookAuthor, foreignKey: 'author_id', otherKey: 'book_id' });
+BorrowRecord.belongsTo(User, {
+    as: 'librarian',
+    foreignKey: 'librarianId',
+});
 
-Book.hasMany(BookCopy, { foreignKey: 'book_id' });
-BookCopy.belongsTo(Book, { foreignKey: 'book_id' });
 
-BookCopy.hasMany(BorrowRecord, { foreignKey: 'copy_id' });
-BorrowRecord.belongsTo(BookCopy, { foreignKey: 'copy_id' });
-BorrowRecord.belongsTo(User, { as: 'librarian', foreignKey: 'librarian_id' });
+// =====================================
+// USER - RESERVATION
+// =====================================
 
-Book.hasMany(Reservation, { foreignKey: 'book_id' });
-Reservation.belongsTo(Book, { foreignKey: 'book_id' });
-Reservation.belongsTo(User, { foreignKey: 'user_id' });
+User.hasMany(Reservation, {
+    foreignKey: 'userId',
+});
 
-Book.hasMany(BookPreview, { foreignKey: 'book_id' });
-BookPreview.belongsTo(Book, { foreignKey: 'book_id' });
+Reservation.belongsTo(User, {
+    foreignKey: 'userId',
+});
+
+
+// =====================================
+// USER - AUDIT LOG
+// =====================================
+
+User.hasMany(AuditLog, {
+    foreignKey: 'userId',
+});
+
+AuditLog.belongsTo(User, {
+    foreignKey: 'userId',
+});
+
+
+// =====================================
+// CATEGORY - BOOK
+// =====================================
+
+Category.hasMany(Book, {
+    foreignKey: 'categoryId',
+});
+
+Book.belongsTo(Category, {
+    foreignKey: 'categoryId',
+});
+
+
+// =====================================
+// BOOK - AUTHOR
+// =====================================
+
+Book.belongsToMany(Author, {
+    through: BookAuthor,
+    foreignKey: 'bookId',
+    otherKey: 'authorId',
+});
+
+Author.belongsToMany(Book, {
+    through: BookAuthor,
+    foreignKey: 'authorId',
+    otherKey: 'bookId',
+});
+
+
+// =====================================
+// BOOK - BOOK COPY
+// =====================================
+
+Book.hasMany(BookCopy, {
+    foreignKey: 'bookId',
+});
+
+BookCopy.belongsTo(Book, {
+    foreignKey: 'bookId',
+});
+
+
+// =====================================
+// BOOK COPY - BORROW RECORD
+// =====================================
+
+BookCopy.hasMany(BorrowRecord, {
+    foreignKey: 'copyId',
+});
+
+BorrowRecord.belongsTo(BookCopy, {
+    foreignKey: 'copyId',
+});
+
+
+// =====================================
+// BOOK - RESERVATION
+// =====================================
+
+Book.hasMany(Reservation, {
+    foreignKey: 'bookId',
+});
+
+Reservation.belongsTo(Book, {
+    foreignKey: 'bookId',
+});
+
+
+// =====================================
+// BOOK - BOOK PREVIEW
+// =====================================
+
+Book.hasMany(BookPreview, {
+    foreignKey: 'bookId',
+});
+
+BookPreview.belongsTo(Book, {
+    foreignKey: 'bookId',
+});
+
+
+// =====================================
+// EXPORT MODELS
+// =====================================
 
 module.exports = {
-  sequelize,
-  User,
-  Category,
-  Author,
-  Book,
-  BookAuthor,
-  BookCopy,
-  BorrowRecord,
-  Reservation,
-  AuditLog,
-  BookPreview,
+    sequelize,
+    User,
+    Category,
+    Author,
+    Book,
+    BookAuthor,
+    BookCopy,
+    BorrowRecord,
+    Reservation,
+    AuditLog,
+    BookPreview,
 };
