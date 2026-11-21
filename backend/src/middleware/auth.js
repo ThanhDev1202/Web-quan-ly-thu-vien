@@ -32,7 +32,7 @@ function verifyToken(req, res, next) {
 
     // Verify JWT
     try {
-        const payload = jwt.verify(
+        const payload = jwt.verify(//kiểm tra chữ ký, thời hạn token và giải mã trả về payload
             token,
             process.env.JWT_SECRET
         );
@@ -47,7 +47,6 @@ function verifyToken(req, res, next) {
         req.user = payload;
 
         next();
-
     } catch (err) {
         return res.status(401).json({
             message: 'Invalid or expired token'
@@ -73,7 +72,7 @@ function optionalToken(req, res, next) {
   next();
 }
 
-function authorize(...allowedRoles) {
+function authorize(...allowedRoles) {//nhận 1 danh sách role được phép
     return (req, res, next) => {
 
         // Check authentication
