@@ -113,6 +113,31 @@ async function getCopiesByBookId(bookId) {
 }
 
 /**
+ * List copies of a book that a reader can request right now:
+ * status = available AND no active (pending/approved/borrowed) borrow record.
+ */
+async function getBorrowableCopiesByBookId(bookId) {
+  const copies = await BookCopy.findAll({
+    where: { bookId, status: 'available' },
+    attributes: ['id', 'bookId', 'accessionCode', 'status'],
+    order: [['accessionCode', 'ASC']],
+  });
+
+  if (copies.length === 0) return [];
+
+  const activeRecords = await BorrowRecord.findAll({
+    where: {
+      copyId: copies.map((c) => c.id),
+      status: ['pending', 'approved', 'borrowed'],
+    },
+    attributes: ['copyId'],
+  });
+
+  const busyIds = new Set(activeRecords.map((r) => String(r.copyId)));
+  return copies.filter((c) => !busyIds.has(String(c.id)));
+}
+
+/**
  * Update copy status
  */
 async function updateCopyStatus(id, status) {
@@ -155,6 +180,7 @@ module.exports = {
   createBatchCopies,
   getAllCopies,
   getCopiesByBookId,
+  getBorrowableCopiesByBookId,
   updateCopyStatus,
   deleteCopy,
 };

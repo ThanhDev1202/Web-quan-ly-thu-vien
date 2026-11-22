@@ -43,6 +43,16 @@ router.get('/book/:bookId', async (req, res) => {
   }
 });
 
+// GET /api/copies/book/:bookId/borrowable – copies a reader can request now (public)
+router.get('/book/:bookId/borrowable', async (req, res) => {
+  try {
+    const copies = await copyService.getBorrowableCopiesByBookId(req.params.bookId);
+    res.json(copies);
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
 // PUT /api/copies/:id – update copy status (admin or librarian)
 router.put('/:id', verifyToken, authorize('admin', 'librarian'), async (req, res) => {
   try {

@@ -262,6 +262,10 @@ tr:hover td {
 .badge-available { background-color: #dcfce7; color: #15803d; }
 .badge-borrowed { background-color: #fee2e2; color: #b91c1c; }
 .badge-pending { background-color: #fef3c7; color: #b45309; }
+.badge-approved { background-color: #dcfce7; color: #15803d; }
+.badge-returned { background-color: #e0f2fe; color: #0369a1; }
+.badge-rejected, .badge-cancelled { background-color: #f1f5f9; color: #64748b; }
+.badge-overdue { background-color: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
 
 /* Future Tech Pill Banner (AI, Blockchain, HQC) */
 .tech-pill-container {

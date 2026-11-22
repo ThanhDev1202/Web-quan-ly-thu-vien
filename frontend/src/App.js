@@ -29,6 +29,16 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   return children;
 };
 
+// Readers borrow here; staff are sent to the management page (avoid duplicate pages)
+const MyBorrowsRoute = () => {
+  const { isAuthenticated, user } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.role === 'admin' || user?.role === 'librarian') {
+    return <Navigate to="/manage-borrows" replace />;
+  }
+  return <BorrowManagement />;
+};
+
 function AppContent() {
   return (
     <Router>
@@ -39,11 +49,7 @@ function AppContent() {
           <Route path="/books/:id" element={<BookDetail />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/my-borrows" element={
-            <ProtectedRoute>
-              <BorrowManagement />
-            </ProtectedRoute>
-          } />
+          <Route path="/my-borrows" element={<MyBorrowsRoute />} />
           <Route path="/change-password"element={
         <ProtectedRoute>
             <ChangePassword />

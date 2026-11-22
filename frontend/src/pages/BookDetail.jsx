@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import api, { getFullFileUrl } from '../api/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function BookDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
 
   const [book, setBook] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -100,6 +103,24 @@ export default function BookDetail() {
                 {availableCopies.length > 0 ? `Còn ${availableCopies.length} cuốn tại quầy` : 'Tạm thời hết sách'}
               </span>
             </div>
+
+            {/* Borrow button (reader only) */}
+            {user?.role === 'reader' && (
+              <button
+                className="btn btn-primary"
+                style={{ marginTop: '14px', width: '100%', justifyContent: 'center' }}
+                disabled={availableCopies.length === 0}
+                onClick={() => navigate(`/my-borrows?bookId=${book.id}`)}
+              >
+                <i className="fa-solid fa-book-open-reader"></i>{' '}
+                {availableCopies.length > 0 ? 'Mượn sách này' : 'Hết sách để mượn'}
+              </button>
+            )}
+            {!isAuthenticated && availableCopies.length > 0 && (
+              <Link to="/login" className="btn btn-secondary" style={{ marginTop: '14px', width: '100%', justifyContent: 'center' }}>
+                <i className="fa-solid fa-right-to-bracket"></i> Đăng nhập để mượn sách
+              </Link>
+            )}
 
           </div>
 

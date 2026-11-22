@@ -1,5 +1,5 @@
 
-const { BorrowRecord, BookCopy, User, sequelize } = require('../models');
+const { BorrowRecord, BookCopy, Book, User, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 /**
@@ -18,9 +18,12 @@ function createError(message, statusCode) {
  * librarian: Staff who processes the borrow request
  */
 const borrowIncludes = [
-  { model: BookCopy },
-  { model: User, as: 'user' },
-  { model: User, as: 'librarian' },
+  {
+    model: BookCopy,
+    include: [{ model: Book, attributes: ['id', 'title', 'isbn', 'coverImage'] }],
+  },
+  { model: User, as: 'user', attributes: ['id', 'username', 'fullName', 'email', 'phone'] },
+  { model: User, as: 'librarian', attributes: ['id', 'username', 'fullName'] },
 ];
 
 /**
@@ -383,7 +386,13 @@ async function getOverdueDetails() {
  * Admin/Librarian: all history.
  */
 async function getBorrowHistory({ userRole, userId }) {
-  const where = userRole === 'reader' ? { userId } : {};
+  // History = completed transactions only (distinct from "all")
+  const where = {
+    status: {
+      [Op.in]: ['returned', 'rejected', 'cancelled'],
+    },
+    ...(userRole === 'reader' ? { userId } : {}),
+  };
 
   return await BorrowRecord.findAll({
     where,
