@@ -10,7 +10,6 @@ const categoryRoutes = require('./categories');
 const authorRoutes = require('./authors');
 const copyRoutes = require('./copies');
 const borrowRoutes = require('./borrow');
-const reservationRoutes = require('./reservations');
 const auditRoutes = require('./audit');
 const previewRoutes = require('./previews');
 const uploadRoutes = require('./upload');
@@ -27,7 +26,6 @@ router.use('/upload', uploadRoutes);
 // Protected routes (require valid JWT)
 router.use('/users', verifyToken, userRoutes);
 router.use('/borrow', verifyToken, borrowRoutes);
-router.use('/reservations', verifyToken, reservationRoutes);
 router.use('/audit', verifyToken, auditRoutes);
 
 module.exports = router;

@@ -87,7 +87,7 @@ async function requestBorrow({ userId, copyId, dueDate }) {
 /**
  * Admin or Librarian approves borrow request
  *
- * BookCopy: available -> reserved
+ * BookCopy: available -> borrowed (held for this reader)
  * BorrowRecord: pending -> approved
  */
 async function approveBorrow(id, librarianId) {
@@ -115,7 +115,7 @@ async function approveBorrow(id, librarianId) {
     }
 
     await copy.update({
-      status: 'reserved',
+      status: 'borrowed',
     }, { transaction });
 
     await record.update({
@@ -131,7 +131,7 @@ async function approveBorrow(id, librarianId) {
  * Reject borrow request
  *
  * Can reject pending or approved requests.
- * If already approved, release the reserved copy.
+ * If already approved, release the held copy.
  */
 async function rejectBorrow(id, librarianId) {
   return await sequelize.transaction(async (transaction) => {
@@ -148,7 +148,7 @@ async function rejectBorrow(id, librarianId) {
       throw createError('Cannot reject this request', 400);
     }
 
-    // Release reserved copy if request was already approved
+    // Release held copy if request was already approved
     if (record.status === 'approved') {
       const copy = await BookCopy.findByPk(record.copyId, {
         transaction,
@@ -159,8 +159,8 @@ async function rejectBorrow(id, librarianId) {
         throw createError('Book copy not found', 404);
       }
 
-      if (copy.status !== 'reserved') {
-        throw createError('Book copy is not reserved', 409);
+      if (copy.status !== 'borrowed') {
+        throw createError('Book copy is not held for this request', 409);
       }
 
       await copy.update({
@@ -210,7 +210,7 @@ async function cancelBorrow(id, userId) {
 /**
  * Confirm handing the book to reader
  *
- * BookCopy: reserved -> borrowed
+ * BookCopy: stays borrowed (already held since approval)
  * BorrowRecord: approved -> borrowed
  */
 async function confirmHandover(id, librarianId) {
@@ -233,13 +233,9 @@ async function confirmHandover(id, librarianId) {
       lock: transaction.LOCK.UPDATE,
     });
 
-    if (!copy || copy.status !== 'reserved') {
-      throw createError('Book copy is not reserved', 409);
+    if (!copy || copy.status !== 'borrowed') {
+      throw createError('Book copy is not held for this request', 409);
     }
-
-    await copy.update({
-      status: 'borrowed',
-    }, { transaction });
 
     await record.update({
       status: 'borrowed',

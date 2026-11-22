@@ -29,10 +29,6 @@ export default function Navbar() {
               <i className="fa-solid fa-clock-rotate-left"></i> Lịch sử mượn
             </Link>
 
-            <Link to="/reservations">
-              <i className="fa-solid fa-bookmark"></i> Đặt trước
-            </Link>
-
             <Link to="/change-password">
               <i className="fa-solid fa-key"></i> Đổi mật khẩu
             </Link>

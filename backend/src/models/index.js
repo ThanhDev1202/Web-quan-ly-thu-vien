@@ -8,7 +8,6 @@ const Book = require('./book');
 const BookAuthor = require('./bookAuthor');
 const BookCopy = require('./bookCopy');
 const BorrowRecord = require('./borrowRecord');
-const Reservation = require('./reservation');
 const AuditLog = require('./auditLog');
 const BookPreview = require('./bookPreview');
 
@@ -36,19 +35,6 @@ User.hasMany(BorrowRecord, {
 BorrowRecord.belongsTo(User, {
     as: 'librarian',
     foreignKey: 'librarianId',
-});
-
-
-// =====================================
-// USER - RESERVATION
-// =====================================
-
-User.hasMany(Reservation, {
-    foreignKey: 'userId',
-});
-
-Reservation.belongsTo(User, {
-    foreignKey: 'userId',
 });
 
 
@@ -122,19 +108,6 @@ BorrowRecord.belongsTo(BookCopy, {
 
 
 // =====================================
-// BOOK - RESERVATION
-// =====================================
-
-Book.hasMany(Reservation, {
-    foreignKey: 'bookId',
-});
-
-Reservation.belongsTo(Book, {
-    foreignKey: 'bookId',
-});
-
-
-// =====================================
 // BOOK - BOOK PREVIEW
 // =====================================
 
@@ -160,7 +133,6 @@ module.exports = {
     BookAuthor,
     BookCopy,
     BorrowRecord,
-    Reservation,
     AuditLog,
     BookPreview,
 };

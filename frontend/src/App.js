@@ -11,7 +11,6 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ManageBooks from './pages/ManageBooks';
 import BorrowManagement from './pages/BorrowManagement';
-import ReservationManagement from './pages/ReservationManagement';
 import AuditLogs from './pages/AuditLogs';
 import ChangePassword from './pages/ChangePassword';
 import AdminUserManagement from './pages/AdminUserManagement';
@@ -51,11 +50,6 @@ function AppContent() {
         </ProtectedRoute>
     }
 />
-          <Route path="/reservations" element={
-            <ProtectedRoute>
-              <ReservationManagement />
-            </ProtectedRoute>
-          } />
           <Route path="/manage-books" element={
             <ProtectedRoute allowedRoles={['admin', 'librarian']}>
               <ManageBooks />
