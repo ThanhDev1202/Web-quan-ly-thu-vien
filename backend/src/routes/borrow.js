@@ -271,7 +271,8 @@ router.patch(
 
       const record = await borrowService.extendBorrow(
         req.params.id,
-        newDueDate
+        newDueDate,
+        req.user.id
       );
 
       res.status(200).json(record);
