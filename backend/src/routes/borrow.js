@@ -148,11 +148,11 @@ router.get(
 
 /**
  * POST /api/borrow/return/:id
- * Reader returns their own book; admin/librarian can return on behalf
+ * Admin or librarian confirms book return
  */
 router.post(
   '/return/:id',
-  authorize('reader', 'admin', 'librarian'),
+  authorize('admin', 'librarian'),
   async (req, res) => {
     try {
       const record = await borrowService.returnCopy(

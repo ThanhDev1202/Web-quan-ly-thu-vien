@@ -267,10 +267,9 @@ async function getBorrowRecords({ userRole, userId }) {
 }
 
 /**
- * Return a borrowed copy
+ * Confirm book return
  *
- * Reader can only return their own borrow record.
- * Admin/Librarian can return on behalf of a reader.
+ * Only Admin/Librarian can confirm book return.
  */
 async function returnCopy(id, { userId, userRole }) {
   return await sequelize.transaction(async (transaction) => {
@@ -283,15 +282,8 @@ async function returnCopy(id, { userId, userRole }) {
       throw createError('Record not found', 404);
     }
 
-    if (!['reader', 'admin', 'librarian'].includes(userRole)) {
-      throw createError('Permission denied', 403);
-    }
-
-    if (
-      userRole === 'reader' &&
-      String(record.userId) !== String(userId)
-    ) {
-      throw createError('You cannot return this book', 403);
+    if (!['admin', 'librarian'].includes(userRole)) {
+      throw createError('Only admin or librarian can confirm return', 403);
     }
 
     if (record.status !== 'borrowed') {

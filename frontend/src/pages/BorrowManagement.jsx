@@ -689,8 +689,8 @@ export default function BorrowManagement() {
                                                 </>
                                             )}
 
-                                            {/* Return borrowed book */}
-                                            {r.status === 'borrowed' && (
+                                            {/* Staff: return borrowed book */}
+                                            {r.status === 'borrowed' && isStaff && (
                                                 <button
                                                     className="btn btn-primary btn-sm"
                                                     disabled={actionLoading}
@@ -728,6 +728,19 @@ export default function BorrowManagement() {
                                                     <i className="fa-solid fa-phone-volume"></i>
                                                     {' '}Liên hệ
                                                 </button>
+                                            )}
+
+                                            {/* Reader: borrowed notice */}
+                                            {r.status === 'borrowed' && !isStaff && (
+                                                <span
+                                                    style={{
+                                                        fontSize: '0.82rem',
+                                                        color: '#2563eb',
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    <i className="fa-solid fa-book-open-reader"></i> Đang mượn – trả sách tại quầy
+                                                </span>
                                             )}
 
                                             {/* Reader: approved notice */}
