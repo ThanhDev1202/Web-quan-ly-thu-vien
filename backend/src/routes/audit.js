@@ -3,11 +3,29 @@ const router = express.Router();
 const { authorize } = require('../middleware/auth');
 const auditService = require('../services/audit.service');
 
-// GET /api/audit – get audit logs (Admin only)
+// GET /api/audit/actions – lấy danh sách loại hành động (Admin only)
+router.get('/actions', authorize('admin'), async (req, res) => {
+  try {
+    const actions = await auditService.getDistinctActions();
+    res.json(actions);
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+// GET /api/audit – get audit logs with pagination & filters (Admin only)
+// Query params: page, limit, action, dateFrom, dateTo
 router.get('/', authorize('admin'), async (req, res) => {
   try {
-    const logs = await auditService.getAuditLogs();
-    res.json(logs);
+    const { page = 1, limit = 20, action, dateFrom, dateTo } = req.query;
+    const result = await auditService.getAuditLogs({
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10),
+      action: action || undefined,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+    });
+    res.json(result);
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }
