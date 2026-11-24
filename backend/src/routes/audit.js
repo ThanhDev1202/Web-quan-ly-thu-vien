@@ -13,8 +13,19 @@ router.get('/', authorize('admin'), async (req, res) => {
   }
 });
 
+// GET /api/audit/user/:userId – get audit logs for a specific user (Admin only)
+router.get('/:userId', authorize('admin'), async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const logs = await auditService.getauditLogsByUserId(userId);
+    res.json(logs);
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
 // POST /api/audit – create audit log entry
-router.post('/', async (req, res) => {
+router.post('/', authorize('admin'), async (req, res) => {
   try {
     const { action, description } = req.body;
     const log = await auditService.createAuditLog({

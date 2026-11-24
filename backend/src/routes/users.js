@@ -65,7 +65,10 @@ router.post(
   authorize('admin'),
   async (req, res) => {
     try {
-      const user = await userService.createUser(req.body);
+      const user = await userService.createUser(
+        req.body,
+        req.user.id
+      );
 
       res.status(201).json({
         message: `Tạo tài khoản ${user.role} thành công!`,

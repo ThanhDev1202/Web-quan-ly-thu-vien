@@ -28,7 +28,17 @@ async function createAuditLog({ userId, action, description }) {
   });
 }
 
+async function getauditLogsByUserId(userId, limit = 100) {
+  return await AuditLog.findAll({
+    where: { userId },
+    include: [{ model: User, attributes: ['id', 'username', 'fullName', 'role'] }],
+    order: [['created_at', 'DESC']],
+    limit,
+  });
+}
+
 module.exports = {
   getAuditLogs,
   createAuditLog,
+  getauditLogsByUserId,
 };

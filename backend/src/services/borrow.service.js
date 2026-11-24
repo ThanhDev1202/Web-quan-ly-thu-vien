@@ -1,6 +1,7 @@
 
 const { BorrowRecord, BookCopy, Book, User, sequelize } = require('../models');
 const { Op } = require('sequelize');
+const { createAuditLog } = require('./audit.service');
 
 /**
  * Helper: Create an error with HTTP status code
@@ -12,6 +13,17 @@ function createError(message, statusCode) {
 }
 
 /**
+ * Helper: Create audit entry
+ */
+function createAuditEntry(userId, action, description) {
+  return createAuditLog({
+    userId,
+    action,
+    description,
+  });
+}
+
+/**
  * Common includes
  *
  * user: Reader who borrows the book
@@ -20,10 +32,23 @@ function createError(message, statusCode) {
 const borrowIncludes = [
   {
     model: BookCopy,
-    include: [{ model: Book, attributes: ['id', 'title', 'isbn', 'coverImage'] }],
+    include: [
+      {
+        model: Book,
+        attributes: ['id', 'title', 'isbn', 'coverImage'],
+      },
+    ],
   },
-  { model: User, as: 'user', attributes: ['id', 'username', 'fullName', 'email', 'phone'] },
-  { model: User, as: 'librarian', attributes: ['id', 'username', 'fullName'] },
+  {
+    model: User,
+    as: 'user',
+    attributes: ['id', 'username', 'fullName', 'email', 'phone'],
+  },
+  {
+    model: User,
+    as: 'librarian',
+    attributes: ['id', 'username', 'fullName'],
+  },
 ];
 
 /**
@@ -34,20 +59,10 @@ const borrowIncludes = [
  * - Create a pending borrow record.
  */
 async function requestBorrow({ userId, copyId, dueDate }) {
-  return await sequelize.transaction(async (transaction) => {
-    const copy = await BookCopy.findByPk(copyId, {
-      transaction,
-      lock: transaction.LOCK.UPDATE,
-    });
+  let borrowRecord;
 
-    if (!copy) {
-      throw createError('Copy not found', 404);
-    }
-
-    if (copy.status !== 'available') {
-      throw createError('Copy not available', 400);
-    }
-
+  try {
+    // Validate due date
     const date = new Date(dueDate);
 
     if (
@@ -58,33 +73,80 @@ async function requestBorrow({ userId, copyId, dueDate }) {
       throw createError('Invalid due date', 400);
     }
 
-    // Check whether this copy already has an active borrow request
-    const existingRequest = await BorrowRecord.findOne({
-      where: {
-        copyId,
-        status: {
-          [Op.in]: ['pending', 'approved', 'borrowed'],
+    // Start transaction
+    borrowRecord = await sequelize.transaction(async (transaction) => {
+
+      const copy = await BookCopy.findByPk(copyId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!copy) {
+        throw createError('Copy not found', 404);
+      }
+
+      if (copy.status !== 'available') {
+        throw createError('Copy not available', 400);
+      }
+
+      // Check whether this copy already has an active borrow request
+      const existingRequest = await BorrowRecord.findOne({
+        where: {
+          copyId,
+          status: {
+            [Op.in]: ['pending', 'approved', 'borrowed'],
+          },
         },
-      },
-      transaction,
+        transaction,
+      });
+
+      if (existingRequest) {
+        throw createError(
+          'This copy already has an active borrow request',
+          409
+        );
+      }
+
+      // Create borrow request
+      return await BorrowRecord.create({
+        userId,
+        copyId,
+        librarianId: null,
+        borrowDate: null,
+        dueDate: date,
+        status: 'pending',
+      }, { transaction });
+
     });
 
-    if (existingRequest) {
-      throw createError(
-        'This copy already has an active borrow request',
-        409
+  } catch (error) {
+
+    // Transaction failed -> ROLLBACK
+    try {
+      await createAuditEntry(
+        userId,
+        'borrow_request_failed',
+        `Failed to request borrow for copy ID ${copyId}. Reason: ${error.message}`
       );
+    } catch (auditError) {
+      console.error('Failed to save audit log:', auditError);
     }
 
-    return await BorrowRecord.create({
+    throw error;
+  }
+
+  // Transaction successful -> COMMIT
+  try {
+    await createAuditEntry(
       userId,
-      copyId,
-      librarianId: null,
-      borrowDate: null,
-      dueDate: date,
-      status: 'pending',
-    }, { transaction });
-  });
+      'borrow_request',
+      `Successfully requested to borrow copy ID ${copyId}. Borrow record ID: ${borrowRecord.id}`
+    );
+  } catch (auditError) {
+    console.error('Failed to save audit log:', auditError);
+  }
+
+  return borrowRecord;
 }
 
 /**
@@ -94,40 +156,75 @@ async function requestBorrow({ userId, copyId, dueDate }) {
  * BorrowRecord: pending -> approved
  */
 async function approveBorrow(id, librarianId) {
-  return await sequelize.transaction(async (transaction) => {
-    const record = await BorrowRecord.findByPk(id, {
-      transaction,
-      lock: transaction.LOCK.UPDATE,
+  let record;
+
+  try {
+    record = await sequelize.transaction(async (transaction) => {
+
+      const record = await BorrowRecord.findByPk(id, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!record) {
+        throw createError('Record not found', 404);
+      }
+
+      if (record.status !== 'pending') {
+        throw createError('Record not pending', 400);
+      }
+
+      const copy = await BookCopy.findByPk(record.copyId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!copy || copy.status !== 'available') {
+        throw createError('Book copy is not available', 409);
+      }
+
+      // Update book copy status
+      await copy.update({
+        status: 'borrowed',
+      }, { transaction });
+
+      // Update borrow record
+      await record.update({
+        status: 'approved',
+        librarianId,
+      }, { transaction });
+
+      return record;
     });
 
-    if (!record) {
-      throw createError('Record not found', 404);
+  } catch (error) {
+
+    // Transaction failed -> ROLLBACK
+    try {
+      await createAuditEntry(
+        librarianId,
+        'borrow_approve_failed',
+        `Failed to approve borrow record ID ${id}. Reason: ${error.message}`
+      );
+    } catch (auditError) {
+      console.error('Failed to save audit log:', auditError);
     }
 
-    if (record.status !== 'pending') {
-      throw createError('Record not pending', 400);
-    }
+    throw error;
+  }
 
-    const copy = await BookCopy.findByPk(record.copyId, {
-      transaction,
-      lock: transaction.LOCK.UPDATE,
-    });
-
-    if (!copy || copy.status !== 'available') {
-      throw createError('Book copy is not available', 409);
-    }
-
-    await copy.update({
-      status: 'borrowed',
-    }, { transaction });
-
-    await record.update({
-      status: 'approved',
+  // Transaction successful -> COMMIT
+  try {
+    await createAuditEntry(
       librarianId,
-    }, { transaction });
+      'borrow_approve',
+      `Successfully approved borrow record ID ${id}`
+    );
+  } catch (auditError) {
+    console.error('Failed to save audit log:', auditError);
+  }
 
-    return record;
-  });
+  return record;
 }
 
 /**
@@ -137,77 +234,146 @@ async function approveBorrow(id, librarianId) {
  * If already approved, release the held copy.
  */
 async function rejectBorrow(id, librarianId) {
-  return await sequelize.transaction(async (transaction) => {
-    const record = await BorrowRecord.findByPk(id, {
-      transaction,
-      lock: transaction.LOCK.UPDATE,
-    });
+  let record;
 
-    if (!record) {
-      throw createError('Record not found', 404);
-    }
+  try {
+    record = await sequelize.transaction(async (transaction) => {
 
-    if (!['pending', 'approved'].includes(record.status)) {
-      throw createError('Cannot reject this request', 400);
-    }
-
-    // Release held copy if request was already approved
-    if (record.status === 'approved') {
-      const copy = await BookCopy.findByPk(record.copyId, {
+      const record = await BorrowRecord.findByPk(id, {
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
 
-      if (!copy) {
-        throw createError('Book copy not found', 404);
+      if (!record) {
+        throw createError('Record not found', 404);
       }
 
-      if (copy.status !== 'borrowed') {
-        throw createError('Book copy is not held for this request', 409);
+      if (!['pending', 'approved'].includes(record.status)) {
+        throw createError('Cannot reject this request', 400);
       }
 
-      await copy.update({
-        status: 'available',
+      // Release held copy if request was already approved
+      if (record.status === 'approved') {
+        const copy = await BookCopy.findByPk(record.copyId, {
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        });
+
+        if (!copy) {
+          throw createError('Book copy not found', 404);
+        }
+
+        if (copy.status !== 'borrowed') {
+          throw createError(
+            'Book copy is not held for this request',
+            409
+          );
+        }
+
+        await copy.update({
+          status: 'available',
+        }, { transaction });
+      }
+
+      await record.update({
+        status: 'rejected',
+        librarianId,
       }, { transaction });
+
+      return record;
+    });
+
+  } catch (error) {
+
+    // Transaction failed -> ROLLBACK
+    try {
+      await createAuditEntry(
+        librarianId,
+        'borrow_reject_failed',
+        `Failed to reject borrow record ID ${id}. Reason: ${error.message}`
+      );
+    } catch (auditError) {
+      console.error('Failed to save audit log:', auditError);
     }
 
-    await record.update({
-      status: 'rejected',
-      librarianId,
-    }, { transaction });
+    throw error;
+  }
 
-    return record;
-  });
+  // Transaction successful -> COMMIT
+  try {
+    await createAuditEntry(
+      librarianId,
+      'borrow_reject',
+      `Successfully rejected borrow record ID ${id}`
+    );
+  } catch (auditError) {
+    console.error('Failed to save audit log:', auditError);
+  }
+
+  return record;
 }
 
 /**
  * Reader cancels their own pending borrow request
  */
 async function cancelBorrow(id, userId) {
-  return await sequelize.transaction(async (transaction) => {
-    const record = await BorrowRecord.findByPk(id, {
-      transaction,
-      lock: transaction.LOCK.UPDATE,
+  let record;
+
+  try {
+    record = await sequelize.transaction(async (transaction) => {
+
+      const record = await BorrowRecord.findByPk(id, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!record) {
+        throw createError('Record not found', 404);
+      }
+
+      if (String(record.userId) !== String(userId)) {
+        throw createError('You cannot cancel this request', 403);
+      }
+
+      if (record.status !== 'pending') {
+        throw createError('Cannot cancel this request', 400);
+      }
+
+      await record.update({
+        status: 'cancelled',
+      }, { transaction });
+
+      return record;
     });
 
-    if (!record) {
-      throw createError('Record not found', 404);
+  } catch (error) {
+
+    // Transaction failed -> ROLLBACK
+    try {
+      await createAuditEntry(
+        userId,
+        'borrow_cancel_failed',
+        `Failed to cancel borrow record ID ${id}. Reason: ${error.message}`
+      );
+    } catch (auditError) {
+      console.error('Failed to save audit log:', auditError);
     }
 
-    if (String(record.userId) !== String(userId)) {
-      throw createError('You cannot cancel this request', 403);
-    }
+    throw error;
+  }
 
-    if (record.status !== 'pending') {
-      throw createError('Cannot cancel this request', 400);
-    }
+  // Transaction successful -> COMMIT
+  try {
+    await createAuditEntry(
+      userId,
+      'borrow_cancel',
+      `Successfully cancelled borrow record ID ${id}`
+    );
+  } catch (auditError) {
+    console.error('Failed to save audit log:', auditError);
+  }
 
-    await record.update({
-      status: 'cancelled',
-    }, { transaction });
-
-    return record;
-  });
+  return record;
 }
 
 /**
@@ -217,37 +383,73 @@ async function cancelBorrow(id, userId) {
  * BorrowRecord: approved -> borrowed
  */
 async function confirmHandover(id, librarianId) {
-  return await sequelize.transaction(async (transaction) => {
-    const record = await BorrowRecord.findByPk(id, {
-      transaction,
-      lock: transaction.LOCK.UPDATE,
+  let record;
+
+  try {
+    record = await sequelize.transaction(async (transaction) => {
+
+      const record = await BorrowRecord.findByPk(id, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!record) {
+        throw createError('Record not found', 404);
+      }
+
+      if (record.status !== 'approved') {
+        throw createError('Record is not approved', 400);
+      }
+
+      const copy = await BookCopy.findByPk(record.copyId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!copy || copy.status !== 'borrowed') {
+        throw createError(
+          'Book copy is not held for this request',
+          409
+        );
+      }
+
+      await record.update({
+        status: 'borrowed',
+        borrowDate: new Date(),
+        librarianId,
+      }, { transaction });
+
+      return record;
     });
 
-    if (!record) {
-      throw createError('Record not found', 404);
+  } catch (error) {
+
+    // Transaction failed -> ROLLBACK
+    try {
+      await createAuditEntry(
+        librarianId,
+        'borrow_handover_failed',
+        `Failed to confirm handover for borrow record ID ${id}. Reason: ${error.message}`
+      );
+    } catch (auditError) {
+      console.error('Failed to save audit log:', auditError);
     }
 
-    if (record.status !== 'approved') {
-      throw createError('Record is not approved', 400);
-    }
+    throw error;
+  }
 
-    const copy = await BookCopy.findByPk(record.copyId, {
-      transaction,
-      lock: transaction.LOCK.UPDATE,
-    });
-
-    if (!copy || copy.status !== 'borrowed') {
-      throw createError('Book copy is not held for this request', 409);
-    }
-
-    await record.update({
-      status: 'borrowed',
-      borrowDate: new Date(),
+  // Transaction successful -> COMMIT
+  try {
+    await createAuditEntry(
       librarianId,
-    }, { transaction });
+      'borrow_handover',
+      `Successfully confirmed handover for borrow record ID ${id}`
+    );
+  } catch (auditError) {
+    console.error('Failed to save audit log:', auditError);
+  }
 
-    return record;
-  });
+  return record;
 }
 
 /**
@@ -272,48 +474,90 @@ async function getBorrowRecords({ userRole, userId }) {
  * Only Admin/Librarian can confirm book return.
  */
 async function returnCopy(id, { userId, userRole }) {
-  return await sequelize.transaction(async (transaction) => {
-    const record = await BorrowRecord.findByPk(id, {
-      transaction,
-      lock: transaction.LOCK.UPDATE,
+  let record;
+
+  try {
+    record = await sequelize.transaction(async (transaction) => {
+
+      const record = await BorrowRecord.findByPk(id, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!record) {
+        throw createError('Record not found', 404);
+      }
+
+      if (!['admin', 'librarian'].includes(userRole)) {
+        throw createError(
+          'Only admin or librarian can confirm return',
+          403
+        );
+      }
+
+      if (record.status !== 'borrowed') {
+        throw createError(
+          'Book is not currently borrowed',
+          400
+        );
+      }
+
+      const copy = await BookCopy.findByPk(record.copyId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!copy) {
+        throw createError('Book copy not found', 404);
+      }
+
+      if (copy.status !== 'borrowed') {
+        throw createError(
+          'Book copy is not in borrowed status',
+          409
+        );
+      }
+
+      await copy.update({
+        status: 'available',
+      }, { transaction });
+
+      await record.update({
+        status: 'returned',
+        returnDate: new Date(),
+      }, { transaction });
+
+      return record;
     });
 
-    if (!record) {
-      throw createError('Record not found', 404);
+  } catch (error) {
+
+    // Transaction failed -> ROLLBACK
+    try {
+      await createAuditEntry(
+        userId,
+        'borrow_return_failed',
+        `Failed to return borrow record ID ${id}. Reason: ${error.message}`
+      );
+    } catch (auditError) {
+      console.error('Failed to save audit log:', auditError);
     }
 
-    if (!['admin', 'librarian'].includes(userRole)) {
-      throw createError('Only admin or librarian can confirm return', 403);
-    }
+    throw error;
+  }
 
-    if (record.status !== 'borrowed') {
-      throw createError('Book is not currently borrowed', 400);
-    }
+  // Transaction successful -> COMMIT
+  try {
+    await createAuditEntry(
+      userId,
+      'borrow_return',
+      `Successfully returned borrow record ID ${id}`
+    );
+  } catch (auditError) {
+    console.error('Failed to save audit log:', auditError);
+  }
 
-    const copy = await BookCopy.findByPk(record.copyId, {
-      transaction,
-      lock: transaction.LOCK.UPDATE,
-    });
-
-    if (!copy) {
-      throw createError('Book copy not found', 404);
-    }
-
-    if (copy.status !== 'borrowed') {
-      throw createError('Book copy is not in borrowed status', 409);
-    }
-
-    await copy.update({
-      status: 'available',
-    }, { transaction });
-
-    await record.update({
-      status: 'returned',
-      returnDate: new Date(),
-    }, { transaction });
-
-    return record;
-  });
+  return record;
 }
 
 /**
@@ -399,37 +643,70 @@ async function getBorrowHistory({ userRole, userId }) {
  * Only borrowed records can be extended.
  * New due date must be later than the current due date.
  */
-async function extendBorrow(id, newDueDate) {
-  return await sequelize.transaction(async (transaction) => {
-    const record = await BorrowRecord.findByPk(id, {
-      transaction,
-      lock: transaction.LOCK.UPDATE,
+async function extendBorrow(id, newDueDate, userId) {
+  let record;
+
+  try {
+    record = await sequelize.transaction(async (transaction) => {
+
+      const record = await BorrowRecord.findByPk(id, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!record) {
+        throw createError('Record not found', 404);
+      }
+
+      if (record.status !== 'borrowed') {
+        throw createError('Cannot extend this borrow', 400);
+      }
+
+      const date = new Date(newDueDate);
+
+      if (
+        !newDueDate ||
+        Number.isNaN(date.getTime()) ||
+        date <= new Date(record.dueDate)
+      ) {
+        throw createError('Invalid extension date', 400);
+      }
+
+      await record.update({
+        dueDate: date,
+      }, { transaction });
+
+      return record;
     });
 
-    if (!record) {
-      throw createError('Record not found', 404);
+  } catch (error) {
+
+    // Transaction failed -> ROLLBACK
+    try {
+      await createAuditEntry(
+        userId,
+        'borrow_extend_failed',
+        `Failed to extend borrow record ID ${id}. Reason: ${error.message}`
+      );
+    } catch (auditError) {
+      console.error('Failed to save audit log:', auditError);
     }
 
-    if (record.status !== 'borrowed') {
-      throw createError('Cannot extend this borrow', 400);
-    }
+    throw error;
+  }
 
-    const date = new Date(newDueDate);
+  // Transaction successful -> COMMIT
+  try {
+    await createAuditEntry(
+      userId,
+      'borrow_extend',
+      `Successfully extended due date for borrow record ID ${id}`
+    );
+  } catch (auditError) {
+    console.error('Failed to save audit log:', auditError);
+  }
 
-    if (
-      !newDueDate ||
-      Number.isNaN(date.getTime()) ||
-      date <= new Date(record.dueDate)
-    ) {
-      throw createError('Invalid extension date', 400);
-    }
-
-    await record.update({
-      dueDate: date,
-    }, { transaction });
-
-    return record;
-  });
+  return record;
 }
 
 /**
