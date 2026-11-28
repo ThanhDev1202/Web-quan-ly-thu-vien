@@ -22,26 +22,12 @@ export default function AIChatBot() {
     setLoading(true);
 
     try {
-      // Endpoint dự phòng để nối API Chatbot AI trong tương lai:
-      // const res = await api.post('/chat', { prompt: userText });
-      // const botReply = res.data.reply;
-      
-      // Phản hồi mô phỏng thông minh dựa trên từ khóa:
-      setTimeout(() => {
-        let reply = "Tôi có thể giúp bạn tra cứu sách theo tiêu đề, tác giả, kiểm tra tình trạng bản sao và thời hạn mượn.";
-        const lower = userText.toLowerCase();
-        if (lower.includes('mượn') || lower.includes('hạn')) {
-          reply = "Thời hạn mượn sách tiêu chuẩn là 14 ngày. Bạn có thể gia hạn hoặc đặt trước trực tiếp trên hệ thống!";
-        } else if (lower.includes('sách') || lower.includes('tìm')) {
-          reply = "Bạn có thể dùng thanh tìm kiếm ở trang chủ để tra cứu sách theo tên, tác giả, thể loại hoặc mã ISBN nhé.";
-        } else if (lower.includes('blockchain') || lower.includes('hqc')) {
-          reply = "Hệ thống đang tích hợp chuẩn lưu trữ bất biến qua Blockchain và mã hóa an toàn hậu lượng tử HQC!";
-        }
-        setMessages(prev => [...prev, { sender: 'bot', text: reply }]);
-        setLoading(false);
-      }, 600);
+      const res = await api.post('/rag/chat', { prompt: userText });
+      setMessages(prev => [...prev, { sender: 'bot', text: res.data.reply || 'Tôi chưa có câu trả lời phù hợp.' }]);
     } catch (err) {
-      setMessages(prev => [...prev, { sender: 'bot', text: 'Có lỗi xảy ra khi kết nối máy chủ AI.' }]);
+      const msg = err.response?.data?.error || 'Có lỗi xảy ra khi kết nối máy chủ AI.';
+      setMessages(prev => [...prev, { sender: 'bot', text: msg }]);
+    } finally {
       setLoading(false);
     }
   };

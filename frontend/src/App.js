@@ -14,6 +14,7 @@ import BorrowManagement from './pages/BorrowManagement';
 import AuditLogs from './pages/AuditLogs';
 import ChangePassword from './pages/ChangePassword';
 import AdminUserManagement from './pages/AdminUserManagement';
+import AIKnowledgeAdmin from './pages/AIKnowledgeAdmin';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -74,6 +75,11 @@ function AppContent() {
           <Route path="/admin/users" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminUserManagement />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/ai" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AIKnowledgeAdmin />
             </ProtectedRoute>
           } />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -22,6 +22,7 @@ router.use('/authors', authorRoutes);
 router.use('/copies', copyRoutes);
 router.use('/previews', previewRoutes);
 router.use('/upload', uploadRoutes);
+router.use('/rag', require('./rag')); // chat public; status/sync/stop admin-only
 
 // Protected routes (require valid JWT)
 router.use('/users', verifyToken, userRoutes);
